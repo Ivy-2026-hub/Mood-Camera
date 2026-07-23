@@ -1,0 +1,7 @@
+{
+  "name": "Dopamine Cam",
+  "description": "A vibrant, retro-style instant camera powered by Gemini. Take photos, apply filters, and get AI-generated witty captions.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

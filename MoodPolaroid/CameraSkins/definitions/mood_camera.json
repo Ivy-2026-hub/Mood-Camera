@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "name": "mood_camera",
+  "display_name": "Mood 手绘",
+  "asset_name": "skin_mood_camera_body",
+  "thumbnail_asset_name": "thumb_mood_camera",
+  "pixel_width": 828,
+  "pixel_height": 1388,
+  "canvas_color": "#F4F4F4",
+  "standardization_mode": "product_confirmed",
+  "vision_model": null,
+  "viewport_detection": "product_confirmed",
+  "viewport": {
+    "x": 15.5,
+    "y": 12.8,
+    "width": 69.6,
+    "height": 43.7,
+    "corner_radius_width": 1.9
+  },
+  "controls": [
+    {
+      "function": "shutter",
+      "center_x_pct": 50.1,
+      "center_y_pct": 84.2,
+      "width_pct": 32.6,
+      "height_pct": 19.5,
+      "confidence": 1.0
+    },
+    {
+      "function": "timer",
+      "center_x_pct": 10.3,
+      "center_y_pct": 68.5,
+      "width_pct": 10.9,
+      "height_pct": 6.5,
+      "confidence": 1.0
+    },
+    {
+      "function": "album",
+      "center_x_pct": 15.6,
+      "center_y_pct": 83.9,
+      "width_pct": 14.5,
+      "height_pct": 8.6,
+      "confidence": 1.0
+    },
+    {
+      "function": "flip",
+      "center_x_pct": 86.4,
+      "center_y_pct": 84.1,
+      "width_pct": 14.5,
+      "height_pct": 8.6,
+      "confidence": 1.0
+    },
+    {
+      "function": "flash",
+      "center_x_pct": 87.8,
+      "center_y_pct": 69.6,
+      "width_pct": 15.7,
+      "height_pct": 5.8,
+      "confidence": 1.0
+    }
+  ],
+  "state_controls": [
+    {
+      "role": "flash",
+      "type": "toggle",
+      "rect": {
+        "x": 78.1,
+        "y": 66.6,
+        "width": 18.2,
+        "height": 5.3
+      },
+      "state_patches": {
+        "on": "patch_mood_flash_on",
+        "off": "patch_mood_flash_off"
+      }
+    }
+  ],
+  "missing_controls": [
+    "drawer",
+    "zoom"
+  ],
+  "source_file": "mood_camera_body.png",
+  "filter": {
+    "brightness": 0.018,
+    "contrast": 0.88,
+    "saturation": 0.9,
+    "temperature_shift": 680.0,
+    "fade": 0.12,
+    "vignette_intensity": 0.58,
+    "vignette_radius": 1.12,
+    "grain_intensity": 0.018,
+    "grain_size": 1.0,
+    "bloom_intensity": 0.04,
+    "bloom_radius_fraction": 0.006
+  },
+  "papers": [
+    {
+      "id": "classic",
+      "display_name": "经典白",
+      "color_hex": "#FFFFFF"
+    },
+    {
+      "id": "pink",
+      "display_name": "粉",
+      "color_hex": "#F7A8C6"
+    },
+    {
+      "id": "lemon",
+      "display_name": "柠檬黄",
+      "color_hex": "#FCE147"
+    }
+  ]
+}

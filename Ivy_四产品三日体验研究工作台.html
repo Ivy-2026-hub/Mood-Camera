@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Ivy｜四产品三日体验研究工作台</title>
+  <style>
+    :root {
+      --ink: #17231f;
+      --muted: #68736d;
+      --paper: #f6f1e7;
+      --sheet: #fffdf7;
+      --forest: #173f36;
+      --forest-2: #28584c;
+      --orange: #dc7149;
+      --orange-soft: #f6ded2;
+      --sage: #dce7dc;
+      --line: #d9d2c5;
+      --white: #ffffff;
+      --shadow: 0 18px 48px rgba(32, 48, 41, .12);
+      --radius-lg: 26px;
+      --radius-md: 16px;
+      --radius-sm: 10px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { min-width: 320px; background: var(--paper); }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 4%, rgba(220, 113, 73, .10), transparent 24rem),
+        linear-gradient(135deg, rgba(23, 63, 54, .035) 25%, transparent 25%) 0 0 / 24px 24px,
+        var(--paper);
+      font-family: "Avenir Next", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+      line-height: 1.5;
+    }
+
+    button, input, textarea { font: inherit; }
+
+    button { color: inherit; }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 286px minmax(0, 1fr);
+    }
+
+    .rail {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 34px 26px;
+      color: var(--white);
+      background:
+        radial-gradient(circle at 20% 5%, rgba(255,255,255,.14), transparent 16rem),
+        var(--forest);
+      overflow-y: auto;
+    }
+
+    .brand-mark {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 42px;
+    }
+
+    .brand-glyph {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 50% 50% 48% 52%;
+      background: var(--orange);
+      color: white;
+      font-family: Georgia, serif;
+      font-size: 25px;
+      font-style: italic;
+      transform: rotate(-5deg);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
+    }
+
+    .brand-copy strong { display: block; font-size: 17px; letter-spacing: .04em; }
+    .brand-copy span { color: rgba(255,255,255,.64); font-size: 12px; }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--orange);
+      font-size: 12px;
+      font-weight: 750;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+
+    .rail h1 {
+      margin: 0;
+      font-family: Georgia, "Songti SC", serif;
+      font-size: clamp(30px, 3vw, 44px);
+      font-weight: 500;
+      line-height: 1.08;
+    }
+
+    .rail-intro {
+      margin: 16px 0 28px;
+      color: rgba(255,255,255,.72);
+      font-size: 13px;
+    }
+
+    .product-nav { display: grid; gap: 8px; }
+
+    .product-button {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 12px;
+      border: 1px solid transparent;
+      border-radius: 13px;
+      background: transparent;
+      color: rgba(255,255,255,.7);
+      text-align: left;
+      cursor: pointer;
+      transition: background .18s ease, color .18s ease, border-color .18s ease;
+    }
+
+    .product-button:hover { background: rgba(255,255,255,.08); color: #fff; }
+    .product-button[aria-current="true"] {
+      color: #fff;
+      background: rgba(255,255,255,.13);
+      border-color: rgba(255,255,255,.16);
+    }
+
+    .product-index {
+      width: 29px;
+      height: 29px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      color: var(--forest);
+      background: var(--sage);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .product-name { font-size: 14px; font-weight: 700; }
+    .product-progress { color: rgba(255,255,255,.55); font-size: 11px; }
+
+    .rail-footer {
+      margin-top: 32px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(255,255,255,.14);
+      color: rgba(255,255,255,.55);
+      font-size: 11px;
+    }
+
+    .workspace { padding: 34px clamp(24px, 5vw, 76px) 64px; }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      margin: 0 auto 28px;
+      max-width: 1040px;
+    }
+
+    .save-state {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .save-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #56a378;
+      box-shadow: 0 0 0 4px rgba(86,163,120,.13);
+    }
+
+    .toolbar-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .action-button {
+      min-height: 40px;
+      padding: 9px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.68);
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      transition: transform .16s ease, background .16s ease, border-color .16s ease;
+    }
+
+    .action-button:hover { transform: translateY(-1px); background: #fff; border-color: #bdb4a6; }
+    .action-button.primary { border-color: var(--forest); color: white; background: var(--forest); }
+    .action-button.danger { color: #8d3e31; }
+
+    .research-card {
+      max-width: 1040px;
+      margin: 0 auto;
+      border: 1px solid rgba(102, 91, 75, .14);
+      border-radius: var(--radius-lg);
+      background: rgba(255,253,247,.94);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .card-head {
+      position: relative;
+      padding: clamp(28px, 4vw, 48px) clamp(24px, 5vw, 58px) 0;
+    }
+
+    .card-head::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 42px;
+      width: 88px;
+      height: 14px;
+      background: var(--orange);
+      clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%);
+    }
+
+    .context-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .product-kicker {
+      color: var(--orange);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .time-budget {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    #form-title {
+      margin: 0;
+      font-family: Georgia, "Songti SC", serif;
+      font-size: clamp(32px, 5vw, 56px);
+      font-weight: 500;
+      line-height: 1.05;
+    }
+
+    .form-deck {
+      max-width: 700px;
+      margin: 14px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .day-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 7px;
+      margin-top: 34px;
+      padding: 6px;
+      border-radius: 14px;
+      background: #eee9df;
+    }
+
+    .day-tab {
+      min-height: 46px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 750;
+    }
+
+    .day-tab[aria-selected="true"] {
+      color: var(--forest);
+      background: var(--sheet);
+      box-shadow: 0 3px 12px rgba(48, 55, 49, .09);
+    }
+
+    .form-body { padding: 20px clamp(24px, 5vw, 58px) 42px; }
+
+    .question {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .question:last-child { border-bottom: 0; }
+
+    .question-label {
+      display: grid;
+      grid-template-columns: 30px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      margin-bottom: 13px;
+      font-weight: 750;
+      line-height: 1.42;
+    }
+
+    .question-number {
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--forest);
+      background: var(--sage);
+      font-family: Georgia, serif;
+      font-size: 13px;
+    }
+
+    .helper {
+      margin: -4px 0 12px 40px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .choice-row { display: flex; flex-wrap: wrap; gap: 9px; margin-left: 40px; }
+
+    .choice {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      min-height: 40px;
+      padding: 8px 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fffefb;
+      cursor: pointer;
+      font-size: 13px;
+      transition: border-color .16s ease, background .16s ease;
+    }
+
+    .choice:hover { border-color: #aaa092; }
+    .choice:has(input:checked) { color: #fff; border-color: var(--forest); background: var(--forest); }
+    .choice input { position: absolute; opacity: 0; pointer-events: none; }
+
+    .text-input, .text-area {
+      width: calc(100% - 40px);
+      margin-left: 40px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      color: var(--ink);
+      background: #fffefb;
+      outline: none;
+      transition: border-color .16s ease, box-shadow .16s ease;
+    }
+
+    .text-input { min-height: 44px; padding: 10px 12px; }
+    .text-area { min-height: 82px; padding: 12px; resize: vertical; }
+
+    .text-input:focus, .text-area:focus {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 3px rgba(220,113,73,.13);
+    }
+
+    .two-fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-left: 40px;
+    }
+
+    .two-fields .text-input, .two-fields .text-area { width: 100%; margin-left: 0; }
+
+    .field-caption { display: block; margin: 0 0 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
+
+    .form-nav {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 28px;
+    }
+
+    .nav-button {
+      min-width: 112px;
+      min-height: 44px;
+      padding: 10px 16px;
+      border: 1px solid var(--forest);
+      border-radius: 12px;
+      background: var(--forest);
+      color: #fff;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .nav-button.secondary { color: var(--forest); background: transparent; }
+    .nav-button:disabled { opacity: .35; cursor: not-allowed; }
+
+    .decision-strip {
+      max-width: 1040px;
+      margin: 22px auto 0;
+      padding: 19px 22px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border: 1px solid rgba(23,63,54,.12);
+      border-radius: 16px;
+      background: rgba(220,231,220,.65);
+      color: var(--forest);
+      font-size: 13px;
+    }
+
+    .decision-strip strong { white-space: nowrap; }
+    .decision-strip span { color: #51655e; }
+
+    .print-pack { display: none; }
+
+    :focus-visible { outline: 3px solid rgba(220,113,73,.45); outline-offset: 2px; }
+
+    @media (max-width: 850px) {
+      .app-shell { grid-template-columns: 1fr; }
+      .rail { position: relative; height: auto; padding: 24px; }
+      .brand-mark { margin-bottom: 24px; }
+      .rail h1 { font-size: 34px; }
+      .product-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .rail-footer { display: none; }
+      .workspace { padding: 22px 15px 44px; }
+      .toolbar { align-items: flex-start; }
+    }
+
+    @media (max-width: 560px) {
+      .product-nav { grid-template-columns: 1fr; }
+      .toolbar { flex-direction: column; }
+      .context-line { align-items: flex-start; flex-direction: column; }
+      .two-fields { grid-template-columns: 1fr; }
+      .choice-row { margin-left: 0; }
+      .text-input, .text-area { width: 100%; margin-left: 0; }
+      .two-fields { margin-left: 0; }
+      .helper { margin-left: 0; }
+      .question-label { grid-template-columns: 26px minmax(0, 1fr); }
+      .decision-strip { align-items: flex-start; flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+
+    @page { size: A4 portrait; margin: 12mm 13mm 13mm; }
+
+    @media print {
+      html, body { min-width: 0; background: #fff; }
+      .app-shell { display: none !important; }
+      .print-pack { display: block; color: #111; font-family: "Arial Unicode MS", "PingFang SC", sans-serif; }
+      .print-cover, .print-sheet, .print-summary { break-after: page; page-break-after: always; min-height: 264mm; }
+      .print-cover {
+        display: grid;
+        align-content: center;
+        padding: 18mm;
+        border: 1px solid #183e35;
+      }
+      .print-cover .print-kicker { color: #b85234; font-size: 10pt; font-weight: 700; letter-spacing: .18em; }
+      .print-cover h1 { margin: 7mm 0 4mm; color: #173f36; font-family: Georgia, "Songti SC", serif; font-size: 32pt; font-weight: 500; line-height: 1.05; }
+      .print-cover p { max-width: 130mm; color: #59635e; font-size: 11pt; }
+      .print-meta { margin-top: 28mm; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10mm; }
+      .print-line { padding-bottom: 3mm; border-bottom: 1px solid #999; color: #555; font-size: 9pt; }
+      .print-sheet { position: relative; }
+      .print-sheet-header { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 4mm; border-bottom: 2px solid #173f36; }
+      .print-product { color: #173f36; font-family: Georgia, "Songti SC", serif; font-size: 22pt; }
+      .print-day { color: #b85234; font-size: 10pt; font-weight: 700; letter-spacing: .12em; }
+      .print-question { padding: 5mm 0; border-bottom: .5px solid #c8c8c8; }
+      .print-question h3 { margin: 0 0 2mm; font-size: 10pt; line-height: 1.35; }
+      .print-answer { min-height: 12mm; color: #222; font-family: "Kaiti SC", "Arial Unicode MS", sans-serif; font-size: 10pt; white-space: pre-wrap; }
+      .print-answer.empty { background: repeating-linear-gradient(to bottom, transparent 0, transparent 6mm, #d8d8d8 6.2mm); }
+      .print-footer { position: absolute; bottom: 2mm; left: 0; right: 0; display: flex; justify-content: space-between; color: #888; font-size: 8pt; }
+      .print-summary h2 { margin: 0 0 5mm; color: #173f36; font-family: Georgia, "Songti SC", serif; font-size: 23pt; font-weight: 500; }
+      .print-summary table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.5pt; }
+      .print-summary th, .print-summary td { padding: 3mm; border: .5px solid #aaa; vertical-align: top; word-break: break-word; }
+      .print-summary th { color: #fff; background: #173f36; }
+      .print-summary td { height: 18mm; }
+      .print-summary .decision-box { margin-top: 7mm; padding: 5mm; border: 1px solid #173f36; }
+      .print-summary .decision-box h3 { margin: 0 0 3mm; font-size: 11pt; }
+      .print-summary .decision-box p { min-height: 20mm; margin: 0; white-space: pre-wrap; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="rail" aria-label="产品选择">
+      <div class="brand-mark">
+        <div class="brand-glyph" aria-hidden="true">I</div>
+        <div class="brand-copy"><strong>IVY FIELD NOTES</strong><span>产品体验研究 · 三日制</span></div>
+      </div>
+      <p class="eyebrow">Research sprint 01</p>
+      <h1>四个产品，<br>十二次真实记录。</h1>
+      <p class="rail-intro">每次控制在五分钟内。记录行为、阻力和取舍，让三天后的结论能直接进入产品决策。</p>
+      <nav class="product-nav" id="product-nav"></nav>
+      <div class="rail-footer">数据只保存在当前浏览器本机，不会上传到网络。打印时将自动生成完整研究册。</div>
+    </aside>
+
+    <main class="workspace">
+      <div class="toolbar">
+        <div class="save-state" role="status" aria-live="polite"><span class="save-dot"></span><span id="save-copy">已自动保存在本机</span></div>
+        <div class="toolbar-actions">
+          <button class="action-button" type="button" id="export-button">导出备份</button>
+          <button class="action-button" type="button" id="import-button">导入备份</button>
+          <input type="file" id="import-file" accept="application/json" hidden>
+          <button class="action-button primary" type="button" id="print-button">打印完整研究册</button>
+          <button class="action-button danger" type="button" id="clear-button">清空本机记录</button>
+        </div>
+      </div>
+
+      <section class="research-card" aria-labelledby="form-title">
+        <header class="card-head">
+          <div class="context-line">
+            <span class="product-kicker" id="product-kicker"></span>
+            <span class="time-budget">建议填写时间：3–5 分钟</span>
+          </div>
+          <h2 id="form-title"></h2>
+          <p class="form-deck" id="form-deck"></p>
+          <div class="day-tabs" role="tablist" aria-label="体验天数" id="day-tabs"></div>
+        </header>
+        <form class="form-body" id="research-form"></form>
+      </section>
+
+      <div class="decision-strip">
+        <strong>记录原则</strong>
+        <span>写下具体步骤和具体时刻。“不好用”不能支持决策，“点完通知后找不到记录入口”可以。</span>
+      </div>
+    </main>
+  </div>
+
+  <section class="print-pack" id="print-pack" aria-hidden="true"></section>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const STORAGE_KEY = 'ivy-product-research-v1';
+      const products = [
+        { id: 'dailymem', name: 'dailymem', note: '照片日记' },
+        { id: 'daylio', name: 'Daylio', note: '心情记录' },
+        { id: 'bearable', name: 'Bearable', note: '状态追踪' },
+        { id: 'bereal', name: 'BeReal', note: '即时拍摄' }
+      ];
+
+      const dayMeta = {
+        1: {
+          title: '第一次接触',
+          deck: '关注“我是否立刻明白该做什么”，并记录第一次完成记录时真实发生的阻力。'
+        },
+        2: {
+          title: '第二次使用',
+          deck: '关注记忆成本：没有新手引导后，是否仍能直接完成记录，哪一步开始显得多余。'
+        },
+        3: {
+          title: '主动意愿与取舍',
+          deck: '关注第三天是否愿意主动打开，以及哪些机制值得带进 Ivy、哪些应该明确避开。'
+        }
+      };
+
+      const questions = {
+        1: [
+          { key: 'understand_time', label: '从第一次打开，到你明确知道“现在该做什么”，用了多久？', type: 'choice', options: ['10 秒内', '11–30 秒', '31–60 秒', '1 分钟以上', '始终没明白'] },
+          { key: 'stuck_step', label: '中间具体卡在哪一步？', helper: '写界面、按钮或动作；如果没卡住，写“没有”。', type: 'textarea', placeholder: '例：授权通知后回到首页，不知道从哪里开始第一条记录。' },
+          { key: 'record_time', label: '完成第一条完整记录，实际花了多少时间？', type: 'choice', options: ['30 秒内', '31–60 秒', '1–2 分钟', '2–5 分钟', '超过 5 分钟', '没有完成'] },
+          { key: 'quit', label: '中途有没有想放弃？', type: 'choice', options: ['没有', '有一点', '明确想退出', '已经退出'] },
+          { key: 'quit_moment', label: '如果想放弃，是在哪个具体动作发生时？', helper: '没有想放弃可留空。', type: 'textarea', placeholder: '写下当时正在做的动作，而不是只写“麻烦”。' },
+          { key: 'difference', label: '哪一处让你觉得“这里我会做得不一样”？', type: 'pair', left: '它现在怎么做', right: 'Ivy 具体会怎么做' }
+        ],
+        2: [
+          { key: 'open_trigger', label: '今天为什么打开它？', type: 'choice', options: ['自己想记录', '收到提醒', '为了完成体验任务', '偶然看到图标', '其他'] },
+          { key: 'record_time', label: '今天完成一次完整记录，实际花了多少时间？', type: 'choice', options: ['30 秒内', '31–60 秒', '1–2 分钟', '2–5 分钟', '超过 5 分钟', '没有完成'] },
+          { key: 'memory', label: '不看新手引导，你是否记得从哪里开始、下一步做什么？', type: 'choice', options: ['全部记得', '入口记得，过程要找', '入口就要找', '仍然无法独立完成'] },
+          { key: 'quit', label: '中途有没有想放弃？', type: 'choice', options: ['没有', '有一点', '明确想退出', '已经退出'] },
+          { key: 'friction', label: '今天最想删掉或缩短的一个步骤是什么？', helper: '只写一个，并写出它发生在记录流程的哪里。', type: 'textarea', placeholder: '例：选择活动标签发生在心情之后，选项太多，想直接跳过。' },
+          { key: 'difference', label: '哪一处让你觉得“这里我会做得不一样”？', type: 'pair', left: '它现在怎么做', right: 'Ivy 具体会怎么做' }
+        ],
+        3: [
+          { key: 'active_open', label: '如果今天没有体验任务，你还愿意主动打开它吗？', type: 'choice', options: ['愿意', '可能愿意', '不确定', '不愿意'] },
+          { key: 'active_reason', label: '为什么？写出让你打开或不打开的具体原因。', type: 'textarea', placeholder: '例：愿意，因为昨天的记录今天会形成可回看的变化；不是因为“比较方便”。' },
+          { key: 'record_time', label: '第三天完成一次完整记录，实际花了多少时间？', type: 'choice', options: ['30 秒内', '31–60 秒', '1–2 分钟', '2–5 分钟', '超过 5 分钟', '没有完成'] },
+          { key: 'quit', label: '中途有没有想放弃？', type: 'choice', options: ['没有', '有一点', '明确想退出', '已经退出'] },
+          { key: 'product_decision', label: '体验三天后，你对这个产品的决策是？', type: 'choice', options: ['值得借鉴', '只借鉴一部分', '不适合 Ivy', '还需要继续观察'] },
+          { key: 'difference', label: '最后一次：哪一处让你觉得“这里我会做得不一样”？', type: 'pair', left: '它现在怎么做', right: 'Ivy 具体会怎么做' },
+          { key: 'takeaway', label: '用一句可进入产品文档的话，写下三天后的结论。', helper: '格式建议：“因为……，所以 Ivy 第一版应该／不应该……”。', type: 'textarea', placeholder: '因为……，所以 Ivy 第一版应该／不应该……' }
+        ]
+      };
+
+      let state = loadState();
+      let currentProduct = state.ui?.product || products[0].id;
+      let currentDay = Number(state.ui?.day || 1);
+
+      const productNav = document.getElementById('product-nav');
+      const dayTabs = document.getElementById('day-tabs');
+      const form = document.getElementById('research-form');
+      const saveCopy = document.getElementById('save-copy');
+      const importFile = document.getElementById('import-file');
+
+      function blankState() {
+        const data = {};
+        products.forEach(product => {
+          data[product.id] = { 1: {}, 2: {}, 3: {} };
+        });
+        return { version: 1, updatedAt: null, ui: { product: products[0].id, day: 1 }, data };
+      }
+
+      function loadState() {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
+          if (!parsed || parsed.version !== 1 || !parsed.data) return blankState();
+          const fresh = blankState();
+          products.forEach(product => {
+            [1, 2, 3].forEach(day => {
+              fresh.data[product.id][day] = parsed.data?.[product.id]?.[day] || {};
+            });
+          });
+          fresh.updatedAt = parsed.updatedAt || null;
+          fresh.ui = parsed.ui || fresh.ui;
+          return fresh;
+        } catch (_) {
+          return blankState();
+        }
+      }
+
+      function saveState() {
+        state.updatedAt = new Date().toISOString();
+        state.ui = { product: currentProduct, day: currentDay };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        saveCopy.textContent = '已自动保存在本机 · ' + new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date());
+        renderProductNav();
+      }
+
+      function fieldValue(product, day, key) {
+        return state.data?.[product]?.[day]?.[key] || '';
+      }
+
+      function completedDays(productId) {
+        return [1, 2, 3].filter(day => {
+          const values = Object.values(state.data[productId][day] || {});
+          return values.filter(value => String(value).trim()).length >= 3;
+        }).length;
+      }
+
+      function renderProductNav() {
+        productNav.innerHTML = '';
+        products.forEach((product, index) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'product-button';
+          button.setAttribute('aria-current', String(product.id === currentProduct));
+          button.innerHTML = `<span class="product-index">0${index + 1}</span><span><span class="product-name">${product.name}</span><br><span style="font-size:11px;opacity:.62">${product.note}</span></span><span class="product-progress">${completedDays(product.id)}/3</span>`;
+          button.addEventListener('click', () => {
+            currentProduct = product.id;
+            renderAll();
+            saveState();
+          });
+          productNav.appendChild(button);
+        });
+      }
+
+      function renderDayTabs() {
+        dayTabs.innerHTML = '';
+        [1, 2, 3].forEach(day => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'day-tab';
+          button.role = 'tab';
+          button.setAttribute('aria-selected', String(day === currentDay));
+          button.textContent = `DAY ${day} · ${dayMeta[day].title}`;
+          button.addEventListener('click', () => {
+            currentDay = day;
+            renderAll();
+            saveState();
+          });
+          dayTabs.appendChild(button);
+        });
+      }
+
+      function renderQuestion(question, number) {
+        const section = document.createElement('section');
+        section.className = 'question';
+        const id = `${currentProduct}-${currentDay}-${question.key}`;
+        const current = fieldValue(currentProduct, currentDay, question.key);
+        section.innerHTML = `<div class="question-label"><span class="question-number">${number}</span><label id="label-${id}" for="${id}">${question.label}</label></div>${question.helper ? `<p class="helper">${question.helper}</p>` : ''}`;
+
+        if (question.type === 'choice') {
+          const row = document.createElement('div');
+          row.className = 'choice-row';
+          row.setAttribute('role', 'radiogroup');
+          row.setAttribute('aria-labelledby', `label-${id}`);
+          question.options.forEach(option => {
+            const label = document.createElement('label');
+            label.className = 'choice';
+            const input = document.createElement('input');
+            input.type = 'radio';
+            input.name = id;
+            input.value = option;
+            input.checked = current === option;
+            input.addEventListener('change', () => updateField(question.key, option));
+            label.append(input, document.createTextNode(option));
+            row.appendChild(label);
+          });
+          section.appendChild(row);
+        }
+
+        if (question.type === 'textarea') {
+          const textarea = document.createElement('textarea');
+          textarea.className = 'text-area';
+          textarea.id = id;
+          textarea.value = current;
+          textarea.placeholder = question.placeholder || '';
+          textarea.addEventListener('input', event => updateField(question.key, event.target.value));
+          section.appendChild(textarea);
+        }
+
+        if (question.type === 'pair') {
+          const pair = document.createElement('div');
+          pair.className = 'two-fields';
+          const leftKey = question.key + '_current';
+          const rightKey = question.key + '_ivy';
+          pair.appendChild(makePairField(id + '-current', leftKey, question.left));
+          pair.appendChild(makePairField(id + '-ivy', rightKey, question.right));
+          section.appendChild(pair);
+        }
+        return section;
+      }
+
+      function makePairField(id, key, caption) {
+        const wrapper = document.createElement('label');
+        wrapper.innerHTML = `<span class="field-caption">${caption}</span>`;
+        const textarea = document.createElement('textarea');
+        textarea.className = 'text-area';
+        textarea.id = id;
+        textarea.value = fieldValue(currentProduct, currentDay, key);
+        textarea.addEventListener('input', event => updateField(key, event.target.value));
+        wrapper.appendChild(textarea);
+        return wrapper;
+      }
+
+      function updateField(key, value) {
+        state.data[currentProduct][currentDay][key] = value;
+        saveState();
+      }
+
+      function renderForm() {
+        const product = products.find(item => item.id === currentProduct);
+        document.getElementById('product-kicker').textContent = `${product.name} · DAY ${currentDay}`;
+        document.getElementById('form-title').textContent = dayMeta[currentDay].title;
+        document.getElementById('form-deck').textContent = dayMeta[currentDay].deck;
+        form.innerHTML = '';
+        questions[currentDay].forEach((question, index) => form.appendChild(renderQuestion(question, index + 1)));
+
+        const nav = document.createElement('div');
+        nav.className = 'form-nav';
+        const previous = document.createElement('button');
+        previous.type = 'button';
+        previous.className = 'nav-button secondary';
+        previous.textContent = '← 上一天';
+        previous.disabled = currentDay === 1;
+        previous.addEventListener('click', () => { currentDay -= 1; renderAll(); saveState(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+        const next = document.createElement('button');
+        next.type = 'button';
+        next.className = 'nav-button';
+        next.textContent = currentDay === 3 ? '回到第一天' : '下一天 →';
+        next.addEventListener('click', () => { currentDay = currentDay === 3 ? 1 : currentDay + 1; renderAll(); saveState(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+        nav.append(previous, next);
+        form.appendChild(nav);
+      }
+
+      function renderAll() {
+        renderProductNav();
+        renderDayTabs();
+        renderForm();
+      }
+
+      function humanAnswer(question, productId, day) {
+        if (question.type === 'pair') {
+          const current = fieldValue(productId, day, question.key + '_current');
+          const ivy = fieldValue(productId, day, question.key + '_ivy');
+          return [current && `它现在：${current}`, ivy && `Ivy：${ivy}`].filter(Boolean).join('\n');
+        }
+        return fieldValue(productId, day, question.key);
+      }
+
+      function escapeHtml(value) {
+        return String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+      }
+
+      function buildPrintPack() {
+        const pack = document.getElementById('print-pack');
+        const updated = state.updatedAt ? new Intl.DateTimeFormat('zh-CN', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(state.updatedAt)) : '尚未填写';
+        let html = `
+          <section class="print-cover">
+            <div class="print-kicker">IVY PRODUCT RESEARCH</div>
+            <h1>四产品三日<br>体验研究册</h1>
+            <p>用于记录 dailymem、Daylio、Bearable 与 BeReal 的真实使用行为。重点不是“喜欢或不喜欢”，而是找到能直接支持 Ivy 产品取舍的证据。</p>
+            <div class="print-meta"><div class="print-line">记录人：</div><div class="print-line">开始日期：</div><div class="print-line">结束日期：</div><div class="print-line">最后保存：${escapeHtml(updated)}</div></div>
+          </section>`;
+
+        products.forEach((product, productIndex) => {
+          [1, 2, 3].forEach(day => {
+            html += `<section class="print-sheet"><header class="print-sheet-header"><div><div class="print-day">PRODUCT 0${productIndex + 1} · DAY ${day}</div><div class="print-product">${escapeHtml(product.name)}</div></div><div>${escapeHtml(dayMeta[day].title)}</div></header>`;
+            questions[day].forEach((question, index) => {
+              const answer = humanAnswer(question, product.id, day);
+              html += `<div class="print-question"><h3>${index + 1}. ${escapeHtml(question.label)}</h3><div class="print-answer ${answer ? '' : 'empty'}">${escapeHtml(answer)}</div></div>`;
+            });
+            html += `<footer class="print-footer"><span>Ivy 产品体验研究</span><span>${escapeHtml(product.name)} · Day ${day}</span></footer></section>`;
+          });
+        });
+
+        html += `<section class="print-summary"><div class="print-day">FINAL COMPARISON</div><h2>四产品决策汇总</h2><table><thead><tr><th style="width:14%">产品</th><th style="width:14%">首次明白用时</th><th style="width:14%">Day 3 主动打开</th><th style="width:19%">三天后决策</th><th>可进入 Ivy 的一句结论</th></tr></thead><tbody>`;
+        products.forEach(product => {
+          html += `<tr><th>${escapeHtml(product.name)}</th><td>${escapeHtml(fieldValue(product.id, 1, 'understand_time'))}</td><td>${escapeHtml(fieldValue(product.id, 3, 'active_open'))}</td><td>${escapeHtml(fieldValue(product.id, 3, 'product_decision'))}</td><td>${escapeHtml(fieldValue(product.id, 3, 'takeaway'))}</td></tr>`;
+        });
+        html += `</tbody></table><div class="decision-box"><h3>对 Ivy MVP 的最终影响</h3><p>这次体验让我决定保留：\n\n这次体验让我决定修改：\n\n这次体验让我决定不做：</p></div></section>`;
+        pack.innerHTML = html;
+      }
+
+      document.getElementById('print-button').addEventListener('click', () => {
+        buildPrintPack();
+        window.setTimeout(() => window.print(), 50);
+      });
+      window.addEventListener('beforeprint', buildPrintPack);
+
+      document.getElementById('export-button').addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Ivy_四产品三日体验记录_${new Date().toISOString().slice(0, 10)}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+      });
+
+      document.getElementById('import-button').addEventListener('click', () => importFile.click());
+      importFile.addEventListener('change', async event => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        try {
+          const parsed = JSON.parse(await file.text());
+          if (parsed.version !== 1 || !parsed.data) throw new Error('invalid');
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+          state = loadState();
+          currentProduct = state.ui.product;
+          currentDay = Number(state.ui.day);
+          renderAll();
+          saveCopy.textContent = '备份已导入并保存在本机';
+        } catch (_) {
+          alert('无法导入：请选择由本研究工作台导出的 JSON 备份文件。');
+        }
+        event.target.value = '';
+      });
+
+      document.getElementById('clear-button').addEventListener('click', () => {
+        if (!confirm('确定清空四个产品、三天的全部本机记录吗？此操作无法撤销。')) return;
+        localStorage.removeItem(STORAGE_KEY);
+        state = blankState();
+        currentProduct = products[0].id;
+        currentDay = 1;
+        renderAll();
+        saveCopy.textContent = '本机记录已清空';
+      });
+
+      renderAll();
+      if (state.updatedAt) saveCopy.textContent = '已自动保存在本机 · 上次 ' + new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(state.updatedAt));
+    })();
+  </script>
+</body>
+</html>

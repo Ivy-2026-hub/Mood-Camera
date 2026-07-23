@@ -1,0 +1,105 @@
+{
+  "asset_name": "skin_polaroid_body",
+  "controls": [
+    {
+      "center_x_pct": 14.18851,
+      "center_y_pct": 83.72764,
+      "confidence": 0.99,
+      "function": "album",
+      "height_pct": 9.64183,
+      "width_pct": 15.71867
+    },
+    {
+      "center_x_pct": 50.42529,
+      "center_y_pct": 85.18731,
+      "confidence": 0.99,
+      "function": "shutter",
+      "height_pct": 19.28366,
+      "width_pct": 32.48526
+    },
+    {
+      "center_x_pct": 86.54681,
+      "center_y_pct": 83.72764,
+      "confidence": 0.99,
+      "function": "flip",
+      "height_pct": 9.64183,
+      "width_pct": 15.71867
+    },
+    {
+      "center_x_pct": 89.18919,
+      "center_y_pct": 69.71678,
+      "confidence": 0.84,
+      "function": "flash",
+      "height_pct": 5.51924,
+      "width_pct": 14.98771
+    },
+    {
+      "center_x_pct": 9.09091,
+      "center_y_pct": 69.28105,
+      "confidence": 0.84,
+      "function": "timer",
+      "height_pct": 6.53595,
+      "width_pct": 11.79361
+    }
+  ],
+  "display_name": "拍立得",
+  "filter": {
+    "brightness": 0.012,
+    "contrast": 0.92,
+    "saturation": 0.94,
+    "temperature_shift": 420.0,
+    "fade": 0.075,
+    "vignette_intensity": 0.42,
+    "vignette_radius": 1.18,
+    "grain_intensity": 0.0,
+    "grain_size": 1.0,
+    "bloom_intensity": 0.0,
+    "bloom_radius_fraction": 0.0
+  },
+  "missing_controls": [
+    "drawer"
+  ],
+  "name": "polaroid",
+  "papers": [
+    {
+      "color_hex": "#FFFFFF",
+      "display_name": "经典白",
+      "id": "classic"
+    },
+    {
+      "color_hex": "#F573B3",
+      "display_name": "芭比粉",
+      "id": "barbie"
+    },
+    {
+      "color_hex": "#FCE147",
+      "display_name": "柠檬黄",
+      "id": "lemon"
+    },
+    {
+      "color_hex": "#66E8FA",
+      "display_name": "晴空蓝",
+      "id": "sky"
+    },
+    {
+      "color_hex": "#1C1A17",
+      "display_name": "夜幕黑",
+      "id": "noir"
+    }
+  ],
+  "pixel_height": 1377,
+  "pixel_width": 814,
+  "schema_version": 1,
+  "source_file": "mood_camera_body.png",
+  "standardization_mode": "camera_body_crop",
+  "thumbnail_asset_name": "skin_polaroid_body",
+  "viewport": {
+    "corner_radius_width": 1.4742,
+    "height": 44.00871,
+    "width": 70.39312,
+    "x": 14.98771,
+    "y": 12.63617
+  },
+  "viewport_detection": "codex_vision",
+  "vision_model": "codex"
+}

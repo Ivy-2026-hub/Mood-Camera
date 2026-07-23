@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "name": "ccd",
+  "display_name": "CCD",
+  "asset_name": "skin_ccd_body",
+  "thumbnail_asset_name": "skin_ccd_body",
+  "pixel_width": 910,
+  "pixel_height": 1377,
+  "standardization_mode": "outer_background_trimmed",
+  "vision_model": null,
+  "viewport_detection": "product_confirmed",
+  "viewport": {
+    "x": 16.87033,
+    "y": 7.3069,
+    "width": 47.82857,
+    "height": 47.26449,
+    "corner_radius_width": 1.54286
+  },
+  "controls": [
+    {
+      "function": "shutter",
+      "center_x_pct": 37.87692,
+      "center_y_pct": 76.35323,
+      "width_pct": 17.56484,
+      "height_pct": 11.63108,
+      "confidence": 1.0
+    },
+    {
+      "function": "zoom",
+      "center_x_pct": 37.87692,
+      "center_y_pct": 65.25084,
+      "width_pct": 11.03736,
+      "height_pct": 6.5557,
+      "confidence": 1.0
+    },
+    {
+      "function": "timer",
+      "center_x_pct": 21.26154,
+      "center_y_pct": 76.35323,
+      "width_pct": 10.44396,
+      "height_pct": 6.87291,
+      "confidence": 1.0
+    },
+    {
+      "function": "flip",
+      "center_x_pct": 54.49231,
+      "center_y_pct": 76.35323,
+      "width_pct": 10.44396,
+      "height_pct": 6.87291,
+      "confidence": 1.0
+    },
+    {
+      "function": "flash",
+      "center_x_pct": 37.87692,
+      "center_y_pct": 87.24415,
+      "width_pct": 10.44396,
+      "height_pct": 6.87291,
+      "confidence": 1.0
+    },
+    {
+      "function": "album",
+      "center_x_pct": 59.5956,
+      "center_y_pct": 68.0,
+      "width_pct": 14.24176,
+      "height_pct": 9.4106,
+      "confidence": 1.0
+    }
+  ],
+  "missing_controls": [
+    "drawer"
+  ],
+  "source_file": "ccd_body.png",
+  "filter": {
+    "brightness": 0.012,
+    "contrast": 1.08,
+    "saturation": 1.24,
+    "temperature_shift": -520.0,
+    "fade": 0.0,
+    "vignette_intensity": 0.0,
+    "vignette_radius": 1.0,
+    "grain_intensity": 0.085,
+    "grain_size": 1.2,
+    "bloom_intensity": 0.28,
+    "bloom_radius_fraction": 0.018
+  },
+  "papers": []
+}

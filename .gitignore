@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Xcode local state and build output
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+
