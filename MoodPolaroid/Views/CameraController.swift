@@ -364,8 +364,11 @@ final class CameraController: NSObject, ObservableObject {
         rotationCoordinator = coordinator
         rotationDeviceUniqueID = device.uniqueID
 
+        // “胶片方向”：成片角度必须与取景角度完全一致，取景看到什么就拍到什么。
+        // 不能用 videoRotationAngleForHorizonLevelCapture——它会把横持拍到的画面
+        // 自动转正，于是卡片里变成正着的横图，和侧躺的取景框对不上。
         let previewAngle = coordinator.videoRotationAngleForHorizonLevelPreview
-        let captureAngle = coordinator.videoRotationAngleForHorizonLevelCapture
+        let captureAngle = previewAngle
         UIView.performWithoutAnimation {
             guard let connection = previewLayer.connection else { return }
             connection.automaticallyAdjustsVideoMirroring = false
@@ -396,12 +399,13 @@ final class CameraController: NSObject, ObservableObject {
             }
         }
 
+        // 成片角度跟随取景角度，而不是自动转正角度，保证所见即所得。
         captureRotationObservation = coordinator.observe(
-            \.videoRotationAngleForHorizonLevelCapture,
+            \.videoRotationAngleForHorizonLevelPreview,
             options: [.initial, .new]
         ) { [weak self] coordinator, _ in
             DispatchQueue.main.async {
-                self?.captureRotationAngle = coordinator.videoRotationAngleForHorizonLevelCapture
+                self?.captureRotationAngle = coordinator.videoRotationAngleForHorizonLevelPreview
             }
         }
     }
@@ -451,7 +455,8 @@ final class CameraController: NSObject, ObservableObject {
 /// 产品中拍摄、吐纸完成与翻卡时使用的轻量系统音效和触感反馈。
 enum MoodSoundEffect {
     static func capture() {
-        AudioServicesPlaySystemSound(1108)
+        // 系统在 AVCapturePhotoOutput 拍照时已经会播放一次快门声，
+        // 这里再播 1108 会变成“咔嚓咔嚓”两声、听起来像连拍两张，故只保留触感。
         UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
     }
 

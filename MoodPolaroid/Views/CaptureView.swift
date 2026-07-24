@@ -413,9 +413,10 @@ struct CaptureView: View {
         if reduceMotion {
             return drawerContentOpacity
         }
-        return Double(
-            min(1, max(0, drawerPresentationOffset / 36))
-        )
+        // 直接由我们自己驱动的 drawerOffset 决定：抽屉一旦离开收起位就完全可见。
+        // 早前用 GeometryReader 量出来的 drawerPresentationOffset 在 .offset 变换下
+        // 恒为 0，会把两行内容的透明度算成 0，抽屉拉开后看起来是空的。
+        return drawerOffset > 0.5 ? 1 : 0
     }
 
     private var maximumDrawerOffset: CGFloat {
@@ -477,12 +478,8 @@ struct CaptureView: View {
                 }
                 if !isDraggingDrawer {
                     isDraggingDrawer = true
-                    drawerDragStartOffset = drawerPresentationOffset
-                    var transaction = Transaction()
-                    transaction.disablesAnimations = true
-                    withTransaction(transaction) {
-                        drawerOffset = drawerPresentationOffset
-                    }
+                    // 以当前真实位移为起点接管，动画中途插手也不会跳变。
+                    drawerDragStartOffset = drawerOffset
                 }
 
                 let nextOffset = clampedDrawerOffset(
@@ -503,16 +500,39 @@ struct CaptureView: View {
                     return
                 }
                 isDraggingDrawer = false
-                let projectedOffset = drawerDragStartOffset
-                    - value.predictedEndTranslation.height
                 let legalStates: [CameraDrawerState] =
                     selectedCameraSkin?.papers.isEmpty == false
                         ? [.closed, .cameraSelect, .paperSelect]
                         : [.closed, .cameraSelect]
-                let nearestState = legalStates.min { lhs, rhs in
-                    abs(drawerTargetOffset(for: lhs) - projectedOffset)
-                        < abs(drawerTargetOffset(for: rhs) - projectedOffset)
+
+                // 用手指真实停下的位置判定，不用 predictedEndTranslation：
+                // 惯性投射会把“往下轻拨一点”外推成一大段，导致抽屉整个被关掉。
+                let releasedOffset = clampedDrawerOffset(drawerOffset)
+                let startState = legalStates.min { lhs, rhs in
+                    abs(drawerTargetOffset(for: lhs) - drawerDragStartOffset)
+                        < abs(drawerTargetOffset(for: rhs) - drawerDragStartOffset)
                 } ?? .closed
+                let travelled = releasedOffset - drawerDragStartOffset
+
+                // 只有越过相邻两档之间约三分之一的距离，才允许换档；
+                // 否则一律弹回起始档位，一次手势最多移动一档。
+                let nearestState: CameraDrawerState
+                if let startIndex = legalStates.firstIndex(of: startState) {
+                    let neighbourIndex = travelled > 0 ? startIndex + 1 : startIndex - 1
+                    if legalStates.indices.contains(neighbourIndex) {
+                        let span = abs(
+                            drawerTargetOffset(for: legalStates[neighbourIndex])
+                                - drawerTargetOffset(for: startState)
+                        )
+                        nearestState = abs(travelled) > span / 3
+                            ? legalStates[neighbourIndex]
+                            : startState
+                    } else {
+                        nearestState = startState
+                    }
+                } else {
+                    nearestState = .closed
+                }
                 setDrawerState(nearestState)
             }
     }
