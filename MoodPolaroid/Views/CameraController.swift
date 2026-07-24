@@ -547,23 +547,29 @@ private final class PhotoCaptureProcessor: NSObject, AVCapturePhotoCaptureDelega
         }
 
         guard let data = photo.fileDataRepresentation(),
-              let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let rawPixels = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+              let capturedImage = UIImage(data: data) else {
             completion(.failure(CameraControllerError.cannotCreateImage))
             return
         }
 
-        // 不让 UIImage 自动套用 EXIF orientation：传感器像素以预览中的方向进入相纸。
-        // 从这里开始 orientation 永远为 .up，后续页面无需再判断方向。
-        let filmImage = UIImage(cgImage: rawPixels, scale: 1, orientation: .up)
+        // 「胶片方向」三步，顺序不能换：
+        // 1. UIImage(data:) 会读入 EXIF 方向——绝不能像以前那样直接拿 CGImage 标成
+        //    .up，那等于丢掉方向信息，竖持拍出来的画面会整体躺倒 90°。
+        //    先把方向烘进像素，得到按握持姿态摆正的画面。
+        let uprightImage = capturedImage.bakedUpright()
+        // 2. 仍是横图（横持拍摄）就顺时针转 90°，让它竖过来放上竖版相纸。
+        let portraitImage = uprightImage.size.width > uprightImage.size.height
+            ? uprightImage.rotatedClockwiseForPortraitFilm()
+            : uprightImage
+        // 3. 最后才按取景框比例裁切；先裁后转会把画面裁错边。
         let preparedImage: UIImage
         if let previewAspectRatio,
-           let croppedImage = filmImage.croppedToPreview(
+           let croppedImage = portraitImage.croppedToPreview(
                aspectRatio: previewAspectRatio
            ) {
             preparedImage = croppedImage
         } else {
-            preparedImage = filmImage
+            preparedImage = portraitImage
         }
 
         guard let filteredImage = CameraFilterPipeline.render(
@@ -579,6 +585,17 @@ private final class PhotoCaptureProcessor: NSObject, AVCapturePhotoCaptureDelega
 
 /// 产品中按实时取景框宽高比裁切已经处于“胶片方向”的原始像素。
 private extension UIImage {
+    /// 把 EXIF 方向真正烘进像素，返回 orientation 为 .up 的等价图像。
+    func bakedUpright() -> UIImage {
+        guard imageOrientation != .up else { return self }
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = scale
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            draw(in: CGRect(origin: .zero, size: size))
+        }
+    }
+
     func croppedToPreview(aspectRatio targetAspectRatio: CGFloat) -> UIImage? {
         guard let source = cgImage else { return nil }
         guard targetAspectRatio.isFinite, targetAspectRatio > 0 else { return nil }
