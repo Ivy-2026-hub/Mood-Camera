@@ -20,7 +20,7 @@ struct CardView: View {
     /// 用户是否已经点过“保存心情卡片”；没点就离开视为重拍、放弃这张照片。
     @State private var didCommit = false
     @State private var draftNote = ""
-    @State private var draftEmotion: Emotion?
+
 
     init(
         entry: MoodEntry,
@@ -137,7 +137,6 @@ struct CardView: View {
         .onAppear {
             guard !playsDevelopmentAnimation else { return }
             draftNote = currentEntry.note ?? ""
-            draftEmotion = currentEntry.userEmotion ?? currentEntry.aiEmotion
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(180))
                 isShowingMoodEditor = true
@@ -146,7 +145,6 @@ struct CardView: View {
         .sheet(isPresented: $isShowingMoodEditor) {
             PostDevelopmentMoodEditor(
                 note: $draftNote,
-                selectedEmotion: $draftEmotion,
                 onSave: saveMoodDetails
             )
             .presentationDetents([.medium, .large])
@@ -178,7 +176,6 @@ struct CardView: View {
     private func developmentDidComplete() {
         developmentDidFinish = true
         draftNote = currentEntry.note ?? ""
-        draftEmotion = currentEntry.userEmotion ?? currentEntry.aiEmotion
 
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(320))
@@ -191,12 +188,13 @@ struct CardView: View {
         let note = trimmedNote.isEmpty ? nil : trimmedNote
 
         if currentEntry.isDraft == true {
-            // 这一步才让照片真正进入相册；在此之前它不出现在图钉墙和相簿里。
-            store.commitDraft(id: currentEntry.id, note: note, emotion: draftEmotion)
+            // 这一步才让照片真正进入相册。心情不在这里定，交给 AI 识别；
+            // 用户不满意可在卡片背面直接改（不传 emotion，userEmotion 保持为空，
+            // 卡片显示时回退到 aiEmotion）。
+            store.commitDraft(id: currentEntry.id, note: note, emotion: nil)
         } else {
             var updatedEntry = currentEntry
             updatedEntry.note = note
-            updatedEntry.userEmotion = draftEmotion
             store.update(updatedEntry)
         }
         didCommit = true
@@ -383,10 +381,9 @@ struct EmotionCardBack: View {
     }
 }
 
-/// 产品中仅在照片完成显影后出现的心情填写层。
+/// 产品中仅在照片完成显影后出现的填写层：只写一句可选的话，心情交给 AI 识别。
 private struct PostDevelopmentMoodEditor: View {
     @Binding var note: String
-    @Binding var selectedEmotion: Emotion?
     let onSave: () -> Void
 
     var body: some View {
@@ -408,36 +405,11 @@ private struct PostDevelopmentMoodEditor: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("这一刻的心情")
-                            .font(.headline)
-
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 88))], spacing: 10) {
-                            ForEach(Emotion.allCases) { emotion in
-                                Button {
-                                    selectedEmotion = emotion
-                                } label: {
-                                    HStack(spacing: 7) {
-                                        Circle()
-                                            .fill(selectedEmotion == emotion ? Color.white : Color.pink.opacity(0.65))
-                                            .frame(width: 9, height: 9)
-                                        Text(emotion.displayName)
-                                            .font(.subheadline.weight(.semibold))
-                                    }
-                                    .foregroundStyle(selectedEmotion == emotion ? .white : Color.primary)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 42)
-                                    .background(
-                                        selectedEmotion == emotion
-                                            ? Color(red: 0.91, green: 0.30, blue: 0.50)
-                                            : Color.secondary.opacity(0.08),
-                                        in: Capsule()
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
+                    // 心情不再让用户手选：AI 会自动识别，不满意可以在卡片背面直接改。
+                    Label("心情正在由 AI 识别，保存后可在卡片背面修改", systemImage: "sparkles")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 4)
 
                     Button(action: onSave) {
                         Label("保存心情卡片", systemImage: "heart.fill")
@@ -452,7 +424,7 @@ private struct PostDevelopmentMoodEditor: View {
                 }
                 .padding(20)
             }
-            .navigationTitle("记录显影后的心情")
+            .navigationTitle("记录这一刻")
             .navigationBarTitleDisplayMode(.inline)
         }
     }

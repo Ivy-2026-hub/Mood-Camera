@@ -882,7 +882,13 @@ private struct PinnedPhoto: View {
             radius: isDragging ? 14 : 0,
             y: isDragging ? 10 : 0
         )
+        // 位移必须瞬时跟手：offset 放在“拿起/放下”动画修饰器之后，
+        // 并显式关掉它的隐式动画，否则位移会被卷进那条动画曲线，
+        // 出现“图钉先动、照片两三秒后才追上”的割裂感。
+        .animation(.easeOut(duration: 0.18), value: isDragging)
         .offset(dragTranslation)
+        .animation(nil, value: dragTranslation)
+        .zIndex(isDragging ? 1000 : (entry.wallZIndex ?? 0))
         .contentShape(Rectangle())
         .gesture(
             // 长按后才进入拖动，避免与轻点翻卡、滚动照片墙抢手势。
@@ -900,12 +906,13 @@ private struct PinnedPhoto: View {
                     guard isDragging else { return }
                     isDragging = false
                     let finalTranslation = dragTranslation
-                    dragTranslation = .zero
+                    // 先把落点写进 store（position 一步到位），同一帧内再归零 offset，
+                    // 关掉 offset 的隐式动画后二者叠加不会产生“先归零再飞过去”的闪动。
                     commitDrag?(finalTranslation)
+                    dragTranslation = .zero
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 }
         )
-        .animation(.easeOut(duration: 0.18), value: isDragging)
         .accessibilityLabel("轻点翻看情绪卡片，长按可拖动摆放")
     }
 }

@@ -118,12 +118,12 @@ struct QwenVisionService: AIService {
                用具体的名词和感官词，不要抽象形容词堆砌。
                参考语感：加了糖的下午三点 / 靠窗的一小块太阳 /
                电量12%的星期三 / 云被风推着走",
-  "summary": "15到20个字：像朋友一样说出你看到的具体细节。
+  "summary": "10到30个字：像朋友一样说出你看到的具体细节。
               必须至少提到画面里真实存在的一样东西（颜色、物件、光线、姿态），
               让人一眼知道你真的看了这张照片。不要复述'这是一张照片'。",
-  "encouragement": "12到20个字：一句贴着这张照片具体情境的鼓励。
+  "encouragement": "8到30个字：一句贴着这张照片具体情境的鼓励。
                     不要通用鸡汤，可以俏皮，可以轻轻推一把。",
-  "psychologyNote": "20到35个字：一条真实的心理学小知识，和这一刻的情绪或场景相关。
+  "psychologyNote": "15到45个字：一条真实的心理学小知识，和这一刻的情绪或场景相关。
                      可以点出概念名（例如 情绪粒度、心流、曝光效应、具身认知），
                      但要用生活化的话解释。不许编造研究结论、数字或论文出处。",
   "palette": "sunny / calm / dusk / rain / neutral 之一，
@@ -169,16 +169,16 @@ func validateMoodCardResponse(_ rawJSON: String) throws -> AIResult {
     guard let emotion = Emotion(displayName: values[0]) else {
         throw MoodCardValidationError.invalidEmotion
     }
-    let palette = values[5]
-    guard MoodPalette.isSupported(palette) else {
-        throw MoodCardValidationError.invalidPalette
-    }
+    // palette 越界不该让整条生成失败——那会让卡片退回“生成失败”、连口令都拿不到，
+    // 看起来就像“配色永远不变”。模型偶尔给个白名单外的词，静默退回中性色即可。
+    let palette = MoodPalette.isSupported(values[5]) ? values[5] : MoodPalette.neutral.rawValue
 
     let textValues = Array(values.dropFirst().dropLast())
-    guard 4...10 ~= textValues[0].count,
-          15...20 ~= textValues[1].count,
-          12...20 ~= textValues[2].count,
-          20...35 ~= textValues[3].count else {
+    // 长度只卡“非空且不离谱”，给模型留余地；过严的区间会把好内容也判失败。
+    guard 2...16 ~= textValues[0].count,
+          1...40 ~= textValues[1].count,
+          4...40 ~= textValues[2].count,
+          6...60 ~= textValues[3].count else {
         throw MoodCardValidationError.invalidLength
     }
 

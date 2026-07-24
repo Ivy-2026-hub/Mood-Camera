@@ -169,6 +169,8 @@ struct PolaroidCard: View {
 
             VStack(spacing: 8 * cardScale) {
                 if hasStructuredMoodCard {
+                    // 上方并排：AI 给的情绪口令（大字）+ 用户自己写的 note（小字）。
+                    // 不再显示 summary——它已经去掉了。
                     Text(entry.moodCode ?? captionText)
                         .font(.custom("Chalkboard SE", size: 25 * cardScale))
                         .foregroundStyle(palette.ink)
@@ -176,12 +178,15 @@ struct PolaroidCard: View {
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
 
-                    Text(entry.aiSummary ?? captionText)
-                        .font(.system(size: 13 * cardScale, weight: .medium, design: .rounded))
-                        .foregroundStyle(Color(red: 0.18, green: 0.17, blue: 0.16))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
+                    if let userNote = entry.note?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !userNote.isEmpty {
+                        Text(userNote)
+                            .font(.system(size: 13 * cardScale, weight: .medium, design: .rounded))
+                            .foregroundStyle(Color(red: 0.18, green: 0.17, blue: 0.16))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    }
                 } else {
                     Text(captionText)
                         .font(.system(size: 18 * cardScale, weight: .semibold, design: .rounded))
