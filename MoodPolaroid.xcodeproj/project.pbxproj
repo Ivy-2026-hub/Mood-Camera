@@ -15,6 +15,7 @@
 		A10000000000000000000006 /* CardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* CardView.swift */; };
 		A10000000000000000000007 /* GalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* GalleryView.swift */; };
 		A10000000000000000000008 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* Assets.xcassets */; };
+		A10000000000000000000021 /* Secrets.plist in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021 /* Secrets.plist */; };
 		A10000000000000000000009 /* PolaroidCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* PolaroidCard.swift */; };
 		A1000000000000000000000A /* PhotoFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* PhotoFileStore.swift */; };
 		A1000000000000000000000B /* CameraController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* CameraController.swift */; };
@@ -35,6 +36,7 @@
 		A20000000000000000000006 /* CardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardView.swift; sourceTree = "<group>"; };
 		A20000000000000000000007 /* GalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryView.swift; sourceTree = "<group>"; };
 		A20000000000000000000008 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A20000000000000000000021 /* Secrets.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Secrets.plist; sourceTree = "<group>"; };
 		A20000000000000000000009 /* MoodPolaroid.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MoodPolaroid.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A2000000000000000000000B /* PhotoFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoFileStore.swift; sourceTree = "<group>"; };
 		A2000000000000000000000C /* CameraController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraController.swift; sourceTree = "<group>"; };
@@ -77,6 +79,7 @@
 				A40000000000000000000007 /* Services */,
 				A2000000000000000000000E /* CameraSkins.swift */,
 				A20000000000000000000008 /* Assets.xcassets */,
+				A20000000000000000000021 /* Secrets.plist */,
 			);
 			path = MoodPolaroid;
 			sourceTree = "<group>";
@@ -190,6 +193,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000008 /* Assets.xcassets in Resources */,
+				A10000000000000000000021 /* Secrets.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

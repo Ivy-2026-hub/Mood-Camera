@@ -17,10 +17,27 @@ struct QwenVisionService: AIService {
         self.session = URLSession(configuration: configuration)
     }
 
+    /// 读取 API Key。顺序：① 打进 App 包的 Secrets.plist（随 App 装进手机，
+    /// 拔掉数据线也在）→ ② 环境变量（仅在 Xcode 运行时注入，方便调试）。
+    /// 之所以两条都留，是因为环境变量只在连着 Xcode 时存在，脱机启动就没有了，
+    /// 这正是“不连电脑就调不了 AI”的原因；Secrets.plist 才是随包走的正解。
+    static func resolvedAPIKey() -> String? {
+        if let url = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
+           let dict = NSDictionary(contentsOf: url),
+           let key = dict["DASHSCOPE_API_KEY"] as? String {
+            let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        if let key = ProcessInfo.processInfo.environment["DASHSCOPE_API_KEY"] {
+            let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        return nil
+    }
+
     func generate(for entry: MoodEntry) async throws -> AIResult {
-        guard let apiKey = ProcessInfo.processInfo.environment["DASHSCOPE_API_KEY"],
-              !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            print("QwenVisionService: 未配置 DASHSCOPE_API_KEY")
+        guard let apiKey = Self.resolvedAPIKey() else {
+            print("QwenVisionService: 未配置 DASHSCOPE_API_KEY（请在 Secrets.plist 或环境变量里填写）")
             throw AIServiceError.generationFailed
         }
 

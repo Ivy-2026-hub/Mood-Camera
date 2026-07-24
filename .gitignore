@@ -17,3 +17,6 @@ build/
 *.xcuserstate
 xcuserdata/
 
+
+# API key（真值，勿提交；模板 Secrets.example.plist 可提交）
+MoodPolaroid/Secrets.plist
