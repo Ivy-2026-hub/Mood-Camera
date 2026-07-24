@@ -370,7 +370,8 @@ struct EmotionCardBack: View {
     }
 
     private var palette: MoodPalette {
-        MoodPalette.resolve(entry.palette)
+        // 配色跟随当前情绪（用户改后的优先），改心情即换模板。
+        MoodPalette.forEmotion(entry.userEmotion ?? entry.aiEmotion)
     }
 
     private var hasStructuredMoodCard: Bool {

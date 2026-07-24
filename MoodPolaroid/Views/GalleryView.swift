@@ -45,6 +45,7 @@ private enum GalleryEntryBackground {
 struct GalleryView: View {
     @EnvironmentObject private var store: MoodEntryStore
     @EnvironmentObject private var networkMonitor: NetworkMonitor
+    @Environment(\.dismiss) private var dismiss
     let aiService: any AIService
     let openCapture: () -> Void
 
@@ -58,6 +59,8 @@ struct GalleryView: View {
     @State private var importErrorMessage: String?
     @State private var entryPendingDeletion: MoodEntry?
     @State private var deletionErrorMessage: String?
+    /// 下拉整理时自增，用来只对“整理”这一次触发照片飞回位的动画。
+    @State private var reorgTick = 0
 
     private let photoFileStore = PhotoFileStore()
 
@@ -161,7 +164,29 @@ struct GalleryView: View {
             Text(deletionErrorMessage ?? "")
         }
         .fullScreenCover(item: $selectedEntry) { entry in
-            GalleryPhotoDetail(entry: entry)
+            GalleryPhotoDetail(entry: entry, aiService: aiService)
+        }
+        // 从屏幕左边缘往右滑返回上一级：相簿/图钉墙 → 收藏选择页 → 退出相册。
+        // 这是系统返回手势失效时的兜底，也解决顶部返回栏偶尔看不到的问题。
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 14, coordinateSpace: .global)
+                .onEnded { value in
+                    guard value.startLocation.x < 28,
+                          value.translation.width > 72,
+                          abs(value.translation.height) < 64 else { return }
+                    goBackOneLevel()
+                }
+        )
+    }
+
+    /// 左边缘右滑或返回按钮统一走这里：先退出子模式，已在选择页则退出整个相册。
+    private func goBackOneLevel() {
+        if displayMode != .chooser {
+            withAnimation(.easeInOut(duration: 0.22)) {
+                displayModeRawValue = GalleryDisplayMode.chooser.rawValue
+            }
+        } else {
+            dismiss()
         }
     }
 
@@ -276,14 +301,15 @@ struct GalleryView: View {
                         .zIndex(entry.wallZIndex ?? 0)
                     }
                 }
+                // 只在“照片增删”和“下拉整理”这两个明确时机做动画，
+                // 拖动过程不进入这里（拖动是 PinnedPhoto 内部的本地位移）。
                 .animation(
                     .spring(response: 0.48, dampingFraction: 0.82),
-                    value: store.savedEntries.map(\.id)
+                    value: store.savedEntries.count
                 )
-                // 整理后照片要看得见地飞回各自的位置，而不是瞬间跳过去。
                 .animation(
                     .spring(response: 0.55, dampingFraction: 0.78),
-                    value: wallLayoutSignature
+                    value: reorgTick
                 )
             }
             .frame(height: wallContentHeight)
@@ -299,19 +325,13 @@ struct GalleryView: View {
         store.savedEntries.contains { $0.wallIsManual == true }
     }
 
-    /// 墙面布局的指纹：任意一张照片的位置或层级变化都会触发重排动画。
-    private var wallLayoutSignature: String {
-        store.savedEntries
-            .map { "\($0.id.uuidString.prefix(4))\($0.wallPositionX ?? 0)\($0.wallPositionY ?? 0)" }
-            .joined()
-    }
-
     /// 下拉刷新时整理照片墙：清掉手动摆放标记，全部按时间重新排布。
     @MainActor
     private func reorganizeWall() async {
         guard !store.savedEntries.isEmpty else { return }
         UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
         store.reorganizeWall()
+        reorgTick += 1
         // 留一点时间让下拉指示器收回、照片飞回位的动画放完。
         try? await Task.sleep(for: .milliseconds(520))
         UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -356,9 +376,13 @@ struct GalleryView: View {
     private var albumBooks: [[MoodEntry]] {
         let size = AlbumCapacity.photosPerBook
         guard !store.savedEntries.isEmpty else { return [] }
-        return stride(from: 0, to: store.savedEntries.count, by: size).map { start in
-            let end = min(start + size, store.savedEntries.count)
-            return Array(store.savedEntries[start..<end])
+        // 按“拍摄时间从早到晚”分册：第 1 本永远是最早的 28 张，装满后第 29 张
+        // 开第 2 本。这样老照片不会被挤出原来的相簿，新照片只往最新那一本里加。
+        // （savedEntries 默认是最新在前，这里要反过来按时间正序分组。）
+        let chronological = store.savedEntries.sorted { $0.createdAt < $1.createdAt }
+        return stride(from: 0, to: chronological.count, by: size).map { start in
+            let end = min(start + size, chronological.count)
+            return Array(chronological[start..<end])
         }
     }
 
@@ -1143,12 +1167,15 @@ private struct PhotoWallBackground: View {
 private struct GalleryPhotoDetail: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: MoodEntryStore
+    @EnvironmentObject private var networkMonitor: NetworkMonitor
     let entry: MoodEntry
+    let aiService: any AIService
 
     @AppStorage("polaroidDateStyle") private var dateStyleRawValue = PolaroidDateStyle.localized.rawValue
     @AppStorage("polaroidDateFontStyle") private var dateFontStyleRawValue = PolaroidDateFontStyle.monospaced.rawValue
     @State private var isConfirmingDeletion = false
     @State private var deletionErrorMessage: String?
+    @State private var isShowingEditor = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -1182,6 +1209,17 @@ private struct GalleryPhotoDetail: View {
                         Spacer()
 
                         Button {
+                            isShowingEditor = true
+                        } label: {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 42, height: 42)
+                                .background(.white.opacity(0.14), in: Circle())
+                        }
+                        .accessibilityLabel("编辑文字、心情或重新生成")
+
+                        Button {
                             dismiss()
                         } label: {
                             Image(systemName: "xmark")
@@ -1196,6 +1234,14 @@ private struct GalleryPhotoDetail: View {
                 }
                 .padding(18)
             }
+        }
+        .sheet(isPresented: $isShowingEditor) {
+            SavedCardEditor(
+                entry: currentEntry,
+                aiService: aiService
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .confirmationDialog(
             "删除这张照片和情绪记录？",
@@ -1228,6 +1274,147 @@ private struct GalleryPhotoDetail: View {
 
     private var currentEntry: MoodEntry {
         store.savedEntries.first(where: { $0.id == entry.id }) ?? entry
+    }
+}
+
+/// 保存进相册的卡片仍可编辑：改文字、改心情（=换配色模板）、让 AI 重新生成。
+private struct SavedCardEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: MoodEntryStore
+    @EnvironmentObject private var networkMonitor: NetworkMonitor
+    let entry: MoodEntry
+    let aiService: any AIService
+
+    @State private var note: String = ""
+    @State private var didLoad = false
+
+    private var liveEntry: MoodEntry {
+        store.savedEntries.first(where: { $0.id == entry.id }) ?? entry
+    }
+
+    private var effectiveEmotion: Emotion? {
+        liveEntry.userEmotion ?? liveEntry.aiEmotion
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    // 改文字
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("这一刻写的话")
+                            .font(.headline)
+                        TextField("可选，最多 120 字", text: $note, axis: .vertical)
+                            .lineLimit(3...5)
+                            .padding(14)
+                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+                        Text("\(note.count)/120")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(note.count > 120 ? .red : .secondary)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+
+                    // 改心情（=换配色模板）
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("心情与卡片模板")
+                            .font(.headline)
+                        Text("改心情会同时换掉卡片的配色模板。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 96))], spacing: 10) {
+                            ForEach(Emotion.allCases) { emotion in
+                                let selected = effectiveEmotion == emotion
+                                let palette = MoodPalette.forEmotion(emotion)
+                                Button {
+                                    var updated = liveEntry
+                                    updated.userEmotion = emotion
+                                    store.update(updated)
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Circle().fill(palette.capsule).frame(width: 14, height: 14)
+                                        Text(emotion.displayName)
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                    .foregroundStyle(selected ? palette.ink : .primary)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 44)
+                                    .background(
+                                        selected ? palette.capsule : Color.secondary.opacity(0.08),
+                                        in: Capsule()
+                                    )
+                                    .overlay {
+                                        if selected {
+                                            Capsule().stroke(palette.ink, lineWidth: 1.5)
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    // AI 重新生成
+                    Button {
+                        regenerate()
+                    } label: {
+                        Label(
+                            liveEntry.cardState == .pending ? "正在重新生成…" : "让 AI 重新生成",
+                            systemImage: "sparkles"
+                        )
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color(red: 0.62, green: 0.44, blue: 0.16), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(liveEntry.cardState == .pending)
+                }
+                .padding(20)
+            }
+            .navigationTitle("编辑这张卡片")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("完成") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("保存文字") { saveNote() }
+                        .font(.headline)
+                        .disabled(note.count > 120 || note == (liveEntry.note ?? ""))
+                }
+            }
+            .onAppear {
+                guard !didLoad else { return }
+                note = liveEntry.note ?? ""
+                didLoad = true
+            }
+        }
+    }
+
+    private func saveNote() {
+        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        var updated = liveEntry
+        updated.note = trimmed.isEmpty ? nil : trimmed
+        store.update(updated)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    private func regenerate() {
+        // 先把已经写好的文字落盘，避免重新生成期间丢掉。
+        saveNote()
+        var updated = liveEntry
+        updated.cardState = .pending
+        store.update(updated)
+        Task { @MainActor in
+            await generateMoodCard(
+                entryID: updated.id,
+                using: aiService,
+                store: store,
+                isNetworkConnected: networkMonitor.isConnected
+            )
+        }
     }
 }
 
