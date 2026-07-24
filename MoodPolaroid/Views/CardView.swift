@@ -12,7 +12,8 @@ struct CardView: View {
     @AppStorage("polaroidDateStyle") private var dateStyleRawValue = PolaroidDateStyle.localized.rawValue
     @AppStorage("polaroidDateFontStyle") private var dateFontStyleRawValue = PolaroidDateFontStyle.monospaced.rawValue
     @State private var isFlipped = false
-    @State private var canFlip = false
+    /// 显影动画是否已经放完；翻面还要求 AI 结果已经回来（见 canFlip）。
+    @State private var developmentDidFinish = false
     @State private var isShowingMoodEditor = false
     @State private var draftNote = ""
     @State private var draftEmotion: Emotion?
@@ -25,7 +26,13 @@ struct CardView: View {
         self.entry = entry
         self.openGallery = openGallery
         self.playsDevelopmentAnimation = playsDevelopmentAnimation
-        _canFlip = State(initialValue: !playsDevelopmentAnimation)
+        _developmentDidFinish = State(initialValue: !playsDevelopmentAnimation)
+    }
+
+    /// 只有显影放完、且 AI 分析结果已经在这条记录里，才允许翻面——
+    /// 背面要展示的就是分析内容，没出结果时翻过去是空的。
+    private var canFlip: Bool {
+        developmentDidFinish && currentEntry.cardState == .generated
     }
 
     var body: some View {
@@ -87,8 +94,16 @@ struct CardView: View {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                             .transition(.opacity)
-                    } else if !canFlip {
+                    } else if !developmentDidFinish {
                         Label("正在打印和显影", systemImage: "printer.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    } else if currentEntry.cardState == .failed {
+                        Label("这次没分析成功，可以重试", systemImage: "exclamationmark.triangle")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Label("正在分析这一刻…", systemImage: "sparkles")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
@@ -147,7 +162,7 @@ struct CardView: View {
 
     /// 显影完成后才开放填写，保证用户先完整看到吐纸与显影过程。
     private func developmentDidComplete() {
-        canFlip = true
+        developmentDidFinish = true
         draftNote = currentEntry.note ?? ""
         draftEmotion = currentEntry.userEmotion ?? currentEntry.aiEmotion
 

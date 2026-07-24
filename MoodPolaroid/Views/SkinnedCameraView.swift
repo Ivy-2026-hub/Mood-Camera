@@ -31,6 +31,8 @@ struct SkinnedCameraView<PreviewPlaceholder: View>: View {
     let frozenImage: UIImage?
     let countdown: Int?
     let timerIsEnabled: Bool
+    /// 当前设定的定时秒数，用于倒计时未开始时在 HUD 上显示"⏱ 3s"。
+    let timerSeconds: Int
     let paperHintColor: Color?
     let actions: [CameraSkinControlFunction: () -> Void]
     let isControlEnabled: (CameraSkinControlFunction) -> Bool
@@ -42,6 +44,7 @@ struct SkinnedCameraView<PreviewPlaceholder: View>: View {
         frozenImage: UIImage?,
         countdown: Int?,
         timerIsEnabled: Bool,
+        timerSeconds: Int,
         paperHintColor: Color?,
         actions: [CameraSkinControlFunction: () -> Void],
         isControlEnabled: @escaping (CameraSkinControlFunction) -> Bool,
@@ -52,6 +55,7 @@ struct SkinnedCameraView<PreviewPlaceholder: View>: View {
         self.frozenImage = frozenImage
         self.countdown = countdown
         self.timerIsEnabled = timerIsEnabled
+        self.timerSeconds = timerSeconds
         self.paperHintColor = paperHintColor
         self.actions = actions
         self.isControlEnabled = isControlEnabled
@@ -308,8 +312,16 @@ struct SkinnedCameraView<PreviewPlaceholder: View>: View {
                 }
 
                 if timerIsEnabled {
-                    statusHUDIcon(systemName: "timer")
-                        .transition(.scale(scale: 0.5).combined(with: .opacity))
+                    // 倒计时中显示实时剩余秒数，平时显示设定值，光看图标看不出设了几秒。
+                    HStack(spacing: 3) {
+                        statusHUDIcon(systemName: "timer")
+                        Text("\(countdown ?? timerSeconds)s")
+                            .font(.system(size: 11, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white)
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                    }
+                    .transition(.scale(scale: 0.5).combined(with: .opacity))
                 }
             }
             .padding(.horizontal, 7)

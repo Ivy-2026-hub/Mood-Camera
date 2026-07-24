@@ -176,7 +176,22 @@ struct CaptureView: View {
     @State private var captureFilterSnapshot: CameraSkinFilterParameters?
     @State private var alertMessage: String?
 
+    // MARK: 暂存流程（拍完先编辑，用户确认才入库）
+    /// 已拍下但尚未确认保存的照片；非空时展示编辑页。
+    @State private var pendingDraft: CaptureDraft?
+    @State private var pendingImage: UIImage?
+    @State private var draftNote = ""
+    @State private var draftEmotion: Emotion?
+    /// 用户是否手动改过情绪；改过之后 AI 结果不再覆盖他的选择。
+    @State private var draftEmotionTouchedByUser = false
+    /// 后台生成的结果：拍完立刻开始，用户填字的同时它在路上。
+    @State private var draftAIResult: AIResult?
+    @State private var draftAIDidFail = false
+    @State private var draftAITask: Task<Void, Never>?
+    @State private var isShowingDiscardConfirm = false
+
     private let photoFileStore = PhotoFileStore()
+    private let draftStore = CaptureDraftStore()
 
     /// 读取真实窗口安全区；即使根视图边到边渲染，也不会让标题撞上刘海或灵动岛。
     private var activeWindowSafeAreaInsets: UIEdgeInsets {
@@ -305,6 +320,13 @@ struct CaptureView: View {
         .onAppear {
             restoreLastCameraSelection()
             camera.prepare()
+            restorePendingDraftIfNeeded()
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { pendingDraft != nil },
+            set: { if !$0 { pendingDraft = nil } }
+        )) {
+            draftEditorSheet
         }
         .onDisappear {
             cancelActiveCapture()
@@ -335,6 +357,151 @@ struct CaptureView: View {
         } message: {
             Text(alertMessage ?? "")
         }
+    }
+
+    /// 拍完之后的编辑页：写一句话、选一个心情，确认了才进相册。
+    @ViewBuilder
+    private var draftEditorSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    if let pendingImage {
+                        Image(uiImage: pendingImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 320)
+                            .padding(10)
+                            .background(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .shadow(color: .black.opacity(0.14), radius: 10, y: 5)
+                            .padding(.top, 8)
+                    }
+
+                    draftAIStatusRow
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("这一刻发生了什么")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
+
+                        TextEditor(text: $draftNote)
+                            .frame(height: 110)
+                            .padding(8)
+                            .background(.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(.black.opacity(0.08), lineWidth: 1)
+                            }
+                            .overlay(alignment: .topLeading) {
+                                if draftNote.isEmpty {
+                                    Text("写一句话，记住这一刻")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(.secondary.opacity(0.55))
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 16)
+                                        .allowsHitTesting(false)
+                                }
+                            }
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("当时的心情")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 9) {
+                            ForEach(Emotion.allCases, id: \.self) { emotion in
+                                Button {
+                                    draftEmotion = emotion
+                                    draftEmotionTouchedByUser = true
+                                    persistDraftEdits()
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                } label: {
+                                    Text(emotion.displayName)
+                                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                                        .foregroundStyle(
+                                            draftEmotion == emotion ? .white : .primary.opacity(0.7)
+                                        )
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 10)
+                                        .background(
+                                            draftEmotion == emotion
+                                                ? Color.black.opacity(0.82)
+                                                : Color.black.opacity(0.06),
+                                            in: Capsule()
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    Text("保存后这张照片才会进入相册；点重拍会直接放弃它。")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 28)
+            }
+            .background(Color(white: 0.96))
+            .navigationTitle("记录这一刻")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("重拍", role: .destructive) { requestDiscardDraft() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("保存到相册") { commitDraft() }
+                        .font(.system(size: 15, weight: .bold))
+                        .disabled(!canCommitDraft)
+                }
+            }
+            .onChange(of: draftNote) { _, _ in persistDraftEdits() }
+            .alert("这张还没保存", isPresented: $isShowingDiscardConfirm) {
+                Button("放弃这张", role: .destructive) { discardDraft() }
+                Button("继续编辑", role: .cancel) {}
+            } message: {
+                Text("离开就会丢掉这张照片和已经写下的内容。")
+            }
+            .interactiveDismissDisabled(true)
+        }
+    }
+
+    /// 保存条件：写了一句话，并且选了心情。
+    private var canCommitDraft: Bool {
+        !draftNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && draftEmotion != nil
+    }
+
+    /// 编辑页顶部的一行 AI 状态：让用户知道分析在后台跑，不必干等。
+    @ViewBuilder
+    private var draftAIStatusRow: some View {
+        HStack(spacing: 8) {
+            if draftAIResult != nil {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(Color(red: 0.62, green: 0.44, blue: 0.16))
+                Text("分析好了，保存后可以翻到卡片背面")
+            } else if draftAIDidFail {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                Text("这次没分析成功，保存后可以再试")
+            } else if !networkMonitor.isConnected {
+                Image(systemName: "wifi.slash")
+                    .foregroundStyle(.secondary)
+                Text("现在没有网络，保存后再补上分析")
+            } else {
+                ProgressView().controlSize(.small)
+                Text("正在分析这一刻…")
+            }
+            Spacer()
+        }
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func integratedTopBar(safeAreaTop: CGFloat) -> some View {
@@ -573,6 +740,7 @@ struct CaptureView: View {
                         frozenImage: frozenImage,
                         countdown: countdown,
                         timerIsEnabled: selectedTimer != .off,
+                        timerSeconds: selectedTimer.rawValue,
                         paperHintColor: selectedPaperHintColor,
                         actions: skinControlActions,
                         isControlEnabled: isSkinControlEnabled
@@ -1868,7 +2036,7 @@ struct CaptureView: View {
         }
     }
 
-    /// 拍摄成功后不再停留在填写页，而是先锁定画面、落盘并立即进入打印显影。
+    /// 拍摄成功后先锁定画面走显影动画，然后进入编辑页——此时照片只是“暂存”。
     @MainActor
     private func freezeAndPrintImmediately(_ image: UIImage) {
         frozenImage = image
@@ -1876,52 +2044,44 @@ struct CaptureView: View {
 
         Task {
             try? await Task.sleep(for: .milliseconds(280))
-            saveAndShowCard(image, capturedAt: capturedAt)
+            stageCapture(image, capturedAt: capturedAt)
         }
     }
 
+    /// 把刚拍的照片落到草稿区并进入编辑页；这一步不写入相册。
     @MainActor
-    private func saveAndShowCard(_ image: UIImage, capturedAt: Date) {
-        let entryID = UUID()
-        var savedFileName: String?
+    private func stageCapture(_ image: UIImage, capturedAt: Date) {
+        let draftID = UUID()
 
         do {
-            let fileName = try photoFileStore.save(image, id: entryID)
-            savedFileName = fileName
-            let entry = MoodEntry(
-                id: entryID,
+            let fileName = try photoFileStore.save(image, id: draftID)
+            let paperID = capturePaperIDSnapshot ?? selectedSkinPaperID
+            let draft = CaptureDraft(
+                id: draftID,
                 createdAt: capturedAt,
                 imageFileName: fileName,
                 cameraStyle: captureStyleSnapshot ?? selectedCameraStyle,
                 cameraSkinID: captureSkinIDSnapshot ?? selectedSkinID,
-                paperID: (capturePaperIDSnapshot ?? selectedSkinPaperID).isEmpty
-                    ? nil
-                    : (capturePaperIDSnapshot ?? selectedSkinPaperID),
-                cardState: .pending
+                paperID: paperID.isEmpty ? nil : paperID,
+                note: "",
+                userEmotion: nil
             )
-
-            guard store.add(entry) else {
-                throw CaptureFlowError.cannotSaveRecord
-            }
-
-            startAIGeneration(for: entry)
+            draftStore.save(draft)
 
             captureStyleSnapshot = nil
             captureSkinIDSnapshot = nil
             capturePaperIDSnapshot = nil
             captureFilterSnapshot = nil
             isProcessing = false
-            frozenImage = nil
 
-            let navigationDelay = isShowingScreenFlash ? 760 : 80
+            let presentDelay = isShowingScreenFlash ? 760 : 80
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(navigationDelay))
-                showCard(entry)
+                try? await Task.sleep(for: .milliseconds(presentDelay))
+                presentDraftEditor(draft, image: image)
+                frozenImage = nil
             }
         } catch {
-            if let savedFileName {
-                try? photoFileStore.delete(fileName: savedFileName)
-            }
+            try? photoFileStore.delete(fileName: "\(draftID.uuidString).jpg")
             frozenImage = nil
             captureStyleSnapshot = nil
             captureSkinIDSnapshot = nil
@@ -1930,6 +2090,151 @@ struct CaptureView: View {
             isProcessing = false
             alertMessage = "保存失败：\(error.localizedDescription)"
         }
+    }
+
+    /// 打开编辑页，并立刻在后台开始 AI 生成——用户填字的同时卡片已经在路上。
+    @MainActor
+    private func presentDraftEditor(_ draft: CaptureDraft, image: UIImage?) {
+        pendingImage = image
+        draftNote = draft.note
+        draftEmotion = draft.userEmotion
+        draftEmotionTouchedByUser = draft.userEmotion != nil
+        draftAIResult = nil
+        draftAIDidFail = false
+        pendingDraft = draft
+        startDraftAIGeneration(for: draft)
+    }
+
+    /// 草稿阶段的生成：结果先留在内存，用户点保存时才和记录一起写入。
+    @MainActor
+    private func startDraftAIGeneration(for draft: CaptureDraft) {
+        draftAITask?.cancel()
+        guard !aiService.requiresNetwork || networkMonitor.isConnected else {
+            draftAIDidFail = false
+            return
+        }
+
+        let probeEntry = MoodEntry(
+            id: draft.id,
+            createdAt: draft.createdAt,
+            imageFileName: draft.imageFileName,
+            cameraStyle: draft.cameraStyle,
+            cameraSkinID: draft.cameraSkinID,
+            paperID: draft.paperID,
+            cardState: .pending
+        )
+
+        draftAITask = Task { @MainActor in
+            do {
+                let result = try await aiService.generate(for: probeEntry)
+                guard !Task.isCancelled, pendingDraft?.id == draft.id else { return }
+                draftAIResult = result
+                draftAIDidFail = false
+                // 用户还没自己挑过情绪时，默认跟随 AI 的判断。
+                if !draftEmotionTouchedByUser {
+                    draftEmotion = result.emotion
+                }
+            } catch {
+                guard !Task.isCancelled, pendingDraft?.id == draft.id else { return }
+                draftAIDidFail = true
+            }
+        }
+    }
+
+    /// 用户点“保存到相册”：照片、笔记、情绪和 AI 结果一起写入。
+    @MainActor
+    private func commitDraft() {
+        guard let draft = pendingDraft else { return }
+        let trimmedNote = draftNote.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var entry = MoodEntry(
+            id: draft.id,
+            createdAt: draft.createdAt,
+            imageFileName: draft.imageFileName,
+            cameraStyle: draft.cameraStyle,
+            cameraSkinID: draft.cameraSkinID,
+            paperID: draft.paperID,
+            note: trimmedNote.isEmpty ? nil : trimmedNote,
+            userEmotion: draftEmotion,
+            cardState: .pending
+        )
+
+        if let result = draftAIResult {
+            entry.aiEmotion = result.emotion
+            entry.aiSummary = result.summary
+            entry.cardState = .generated
+        } else if draftAIDidFail {
+            entry.cardState = .failed
+        }
+
+        guard store.add(entry) else {
+            alertMessage = CaptureFlowError.cannotSaveRecord.errorDescription
+            return
+        }
+
+        // 照片文件的归属从草稿转给正式记录，这里只清草稿元数据，不删文件。
+        draftAITask?.cancel()
+        draftStore.clear()
+        pendingDraft = nil
+        pendingImage = nil
+
+        // 保存时还没拿到结果（离线或仍在路上）就交给统一的重试入口继续。
+        if entry.cardState != .generated {
+            startAIGeneration(for: entry)
+        }
+
+        showCard(entry)
+    }
+
+    /// 用户点“重拍”或确认放弃：照片文件和草稿一起删除，不进相册。
+    @MainActor
+    private func discardDraft() {
+        draftAITask?.cancel()
+        if let draft = pendingDraft {
+            try? photoFileStore.delete(fileName: draft.imageFileName)
+        }
+        draftStore.clear()
+        pendingDraft = nil
+        pendingImage = nil
+        draftNote = ""
+        draftEmotion = nil
+        draftEmotionTouchedByUser = false
+        draftAIResult = nil
+        draftAIDidFail = false
+    }
+
+    /// 用户已经填过东西时离开要问一句，什么都没填则直接放弃、不打扰。
+    @MainActor
+    private func requestDiscardDraft() {
+        let hasInput = !draftNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || draftEmotionTouchedByUser
+        if hasInput {
+            isShowingDiscardConfirm = true
+        } else {
+            discardDraft()
+        }
+    }
+
+    /// 启动时若发现上次没保存完的草稿，直接回到编辑页继续，不静默丢照片。
+    @MainActor
+    private func restorePendingDraftIfNeeded() {
+        guard pendingDraft == nil, let draft = draftStore.load() else { return }
+        guard photoFileStore.exists(fileName: draft.imageFileName) else {
+            draftStore.clear()
+            return
+        }
+        let image = photoFileStore.loadImage(fileName: draft.imageFileName)
+        presentDraftEditor(draft, image: image)
+    }
+
+    /// 编辑页里的输入实时回写草稿，App 被杀也不丢已经写下的内容。
+    @MainActor
+    private func persistDraftEdits() {
+        guard var draft = pendingDraft else { return }
+        draft.note = draftNote
+        draft.userEmotion = draftEmotion
+        pendingDraft = draft
+        draftStore.save(draft)
     }
 
     @MainActor
