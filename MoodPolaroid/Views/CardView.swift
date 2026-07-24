@@ -15,6 +15,8 @@ struct CardView: View {
     /// 显影动画是否已经放完；翻面还要求 AI 结果已经回来（见 canFlip）。
     @State private var developmentDidFinish = false
     @State private var isShowingMoodEditor = false
+    /// 用户是否已经点过“保存心情卡片”；没点就离开视为重拍、放弃这张照片。
+    @State private var didCommit = false
     @State private var draftNote = ""
     @State private var draftEmotion: Emotion?
 
@@ -120,6 +122,12 @@ struct CardView: View {
                 }
             }
         }
+        .onDisappear {
+            // 返回即重拍：没点保存就离开，这张照片和记录一起丢弃。
+            if !didCommit, currentEntry.isDraft == true {
+                store.discardDraft(id: currentEntry.id)
+            }
+        }
         .onAppear {
             guard !playsDevelopmentAnimation else { return }
             draftNote = currentEntry.note ?? ""
@@ -173,11 +181,19 @@ struct CardView: View {
     }
 
     private func saveMoodDetails() {
-        var updatedEntry = currentEntry
         let trimmedNote = draftNote.trimmingCharacters(in: .whitespacesAndNewlines)
-        updatedEntry.note = trimmedNote.isEmpty ? nil : trimmedNote
-        updatedEntry.userEmotion = draftEmotion
-        store.update(updatedEntry)
+        let note = trimmedNote.isEmpty ? nil : trimmedNote
+
+        if currentEntry.isDraft == true {
+            // 这一步才让照片真正进入相册；在此之前它不出现在图钉墙和相簿里。
+            store.commitDraft(id: currentEntry.id, note: note, emotion: draftEmotion)
+        } else {
+            var updatedEntry = currentEntry
+            updatedEntry.note = note
+            updatedEntry.userEmotion = draftEmotion
+            store.update(updatedEntry)
+        }
+        didCommit = true
         isShowingMoodEditor = false
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }

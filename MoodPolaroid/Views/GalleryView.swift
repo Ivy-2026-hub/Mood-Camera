@@ -75,7 +75,7 @@ struct GalleryView: View {
                     missingPhotoBanner
                 }
 
-                if store.entries.isEmpty {
+                if store.savedEntries.isEmpty {
                     emptyWall
                 } else {
                     switch displayMode {
@@ -95,7 +95,7 @@ struct GalleryView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                Text("\(store.entries.count) 张")
+                Text("\(store.savedEntries.count) 张")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
             }
@@ -115,7 +115,7 @@ struct GalleryView: View {
                 await importPhoto(from: item)
             }
         }
-        .onChange(of: store.entries.count) { _, _ in
+        .onChange(of: store.savedEntries.count) { _, _ in
             clampAlbumIndices()
         }
         .onAppear {
@@ -239,7 +239,7 @@ struct GalleryView: View {
         ScrollView {
             GeometryReader { proxy in
                 ZStack(alignment: .topLeading) {
-                    ForEach(store.entries) { entry in
+                    ForEach(store.savedEntries) { entry in
                         PinnedPhoto(
                             entry: entry,
                             rotation: entry.wallRotation ?? 0,
@@ -265,7 +265,7 @@ struct GalleryView: View {
                 }
                 .animation(
                     .spring(response: 0.48, dampingFraction: 0.82),
-                    value: store.entries.map(\.id)
+                    value: store.savedEntries.map(\.id)
                 )
             }
             .frame(height: wallContentHeight)
@@ -273,7 +273,7 @@ struct GalleryView: View {
     }
 
     private var wallContentHeight: CGFloat {
-        let largestY = store.entries.compactMap(\.wallPositionY).max() ?? 135
+        let largestY = store.savedEntries.compactMap(\.wallPositionY).max() ?? 135
         return max(520, largestY + 150)
     }
 
@@ -310,10 +310,10 @@ struct GalleryView: View {
     /// 按 28 张一本分册；最新的照片在第一本。
     private var albumBooks: [[MoodEntry]] {
         let size = AlbumCapacity.photosPerBook
-        guard !store.entries.isEmpty else { return [] }
-        return stride(from: 0, to: store.entries.count, by: size).map { start in
-            let end = min(start + size, store.entries.count)
-            return Array(store.entries[start..<end])
+        guard !store.savedEntries.isEmpty else { return [] }
+        return stride(from: 0, to: store.savedEntries.count, by: size).map { start in
+            let end = min(start + size, store.savedEntries.count)
+            return Array(store.savedEntries[start..<end])
         }
     }
 
@@ -359,11 +359,11 @@ struct GalleryView: View {
             VStack(spacing: 12) {
                 GalleryEntryPanel(
                     title: "图钉墙",
-                    subtitle: "\(store.entries.count) 张",
+                    subtitle: "\(store.savedEntries.count) 张",
                     systemImage: "pin.fill",
                     backgroundImageName: GalleryEntryBackground.pinboard
                 ) {
-                    PinboardMiniPreview(entries: Array(store.entries.prefix(6)))
+                    PinboardMiniPreview(entries: Array(store.savedEntries.prefix(6)))
                 } action: {
                     withAnimation(.easeInOut(duration: 0.22)) {
                         displayModeRawValue = GalleryDisplayMode.pinboard.rawValue
@@ -1156,7 +1156,7 @@ private struct GalleryPhotoDetail: View {
     }
 
     private var currentEntry: MoodEntry {
-        store.entries.first(where: { $0.id == entry.id }) ?? entry
+        store.savedEntries.first(where: { $0.id == entry.id }) ?? entry
     }
 }
 
