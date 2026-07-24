@@ -210,6 +210,25 @@ final class MoodEntryStore: ObservableObject {
         return true
     }
 
+    /// 整理照片墙：清掉所有“手动摆放”标记，全部按时间重新排布，最新的回到最上面。
+    ///
+    /// 拖动过的照片会一直待在用户放的位置，久了会挡住新照片的落点；
+    /// 从顶部下拉刷新即可把整面墙重新码齐。
+    @discardableResult
+    func reorganizeWall() -> Bool {
+        let previousEntries = entries
+        for index in entries.indices {
+            entries[index].wallIsManual = nil
+        }
+        reflowWallLayouts()
+
+        guard save() else {
+            entries = previousEntries
+            return false
+        }
+        return true
+    }
+
     /// 用户在照片墙上拖动一张照片后落位：记为手动摆放，并抬到最上层。
     @discardableResult
     func updateWallPosition(
