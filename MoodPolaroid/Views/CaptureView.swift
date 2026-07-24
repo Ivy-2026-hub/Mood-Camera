@@ -380,7 +380,7 @@ struct CaptureView: View {
                     draftAIStatusRow
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("这一刻发生了什么")
+                        Text("这一刻发生了什么（可不填）")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundStyle(.secondary)
 
@@ -394,7 +394,7 @@ struct CaptureView: View {
                             }
                             .overlay(alignment: .topLeading) {
                                 if draftNote.isEmpty {
-                                    Text("写一句话，记住这一刻")
+                                    Text("写一句话，或者留白也可以")
                                         .font(.system(size: 14))
                                         .foregroundStyle(.secondary.opacity(0.55))
                                         .padding(.horizontal, 14)
@@ -468,10 +468,9 @@ struct CaptureView: View {
         }
     }
 
-    /// 保存条件：写了一句话，并且选了心情。
+    /// 保存条件：只要求选了心情。笔记可以留空——这一条对齐验收标准功能一第 2 条。
     private var canCommitDraft: Bool {
-        !draftNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && draftEmotion != nil
+        draftEmotion != nil
     }
 
     /// 编辑页顶部的一行 AI 状态：让用户知道分析在后台跑，不必干等。
