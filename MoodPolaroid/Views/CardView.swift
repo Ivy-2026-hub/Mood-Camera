@@ -246,14 +246,15 @@ struct EmotionCardBack: View {
                     Text("MOOD ANALYSIS")
                         .font(.system(size: 12, weight: .black, design: .rounded))
                         .tracking(1.8)
+                        .foregroundStyle(palette.ink)
                     Text(entry.cardState.displayName)
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(stateColor)
                 }
                 Spacer()
-                Image(systemName: "sparkles")
+                Image(systemName: palette.motif)
                     .font(.title2.weight(.semibold))
-                    .foregroundStyle(Color(red: 0.91, green: 0.30, blue: 0.50))
+                    .foregroundStyle(palette.ink)
             }
 
             Spacer(minLength: 0)
@@ -293,12 +294,12 @@ struct EmotionCardBack: View {
             HStack {
                 Text(dateText)
                     .font(dateFont)
-                    .foregroundStyle(.black.opacity(0.45))
+                    .foregroundStyle(palette.ink.opacity(0.5))
                 Spacer()
                 Button(action: flipBack) {
                     Image(systemName: "arrow.uturn.backward.circle.fill")
                         .font(.title2)
-                        .foregroundStyle(Color(red: 0.72, green: 0.20, blue: 0.38))
+                        .foregroundStyle(palette.ink.opacity(0.8))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("翻回照片正面")
@@ -306,9 +307,21 @@ struct EmotionCardBack: View {
         }
         .padding(28)
         .frame(width: cardWidth, height: cardHeight)
-        .background(
-            palette.paper
-        )
+        .background {
+            ZStack {
+                LinearGradient(
+                    colors: palette.backGradient,
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                // 大幅淡描水印：每种情绪一个符号，翻到背面一眼就能分辨。
+                Image(systemName: palette.motif)
+                    .font(.system(size: 240, weight: .bold))
+                    .foregroundStyle(palette.motifTint)
+                    .rotationEffect(.degrees(-12))
+                    .offset(x: cardWidth * 0.3, y: cardHeight * 0.28)
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 5, style: .continuous)
@@ -339,7 +352,7 @@ struct EmotionCardBack: View {
                     Text(entry.psychologyNote ?? "")
                         .font(.system(size: 14, weight: .medium, design: .rounded))
                         .multilineTextAlignment(.center)
-                        .foregroundStyle(.black.opacity(0.62))
+                        .foregroundStyle(palette.ink.opacity(0.72))
                 }
             } else {
                 VStack(spacing: 12) {

@@ -59,8 +59,6 @@ struct GalleryView: View {
     @State private var importErrorMessage: String?
     @State private var entryPendingDeletion: MoodEntry?
     @State private var deletionErrorMessage: String?
-    /// 下拉整理时自增，用来只对“整理”这一次触发照片飞回位的动画。
-    @State private var reorgTick = 0
 
     private let photoFileStore = PhotoFileStore()
 
@@ -264,35 +262,12 @@ struct GalleryView: View {
         ScrollView {
             GeometryReader { proxy in
                 ZStack(alignment: .topLeading) {
-                    // 有照片被挪动过才提示，等于告诉用户“这面墙现在可以整理一下”。
-                    if hasManuallyPlacedPhotos {
-                        Label("下拉整理照片墙", systemImage: "arrow.down")
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.black.opacity(0.42))
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 5)
-                            .background(.white.opacity(0.62), in: Capsule())
-                            .position(x: proxy.size.width / 2, y: 26)
-                            .allowsHitTesting(false)
-                            .transition(.opacity)
-                    }
-
                     ForEach(store.savedEntries) { entry in
                         PinnedPhoto(
                             entry: entry,
                             rotation: entry.wallRotation ?? 0,
                             showDetail: { selectedEntry = entry },
-                            requestDelete: { entryPendingDeletion = entry },
-                            commitDrag: { translation in
-                                let width = max(1, proxy.size.width)
-                                let currentX = width * (entry.wallPositionX ?? 0.5)
-                                let currentY = entry.wallPositionY ?? 135
-                                store.updateWallPosition(
-                                    id: entry.id,
-                                    relativeX: (currentX + translation.width) / width,
-                                    absoluteY: currentY + translation.height
-                                )
-                            }
+                            requestDelete: { entryPendingDeletion = entry }
                         )
                         .position(
                             x: proxy.size.width * (entry.wallPositionX ?? 0.5),
@@ -301,40 +276,14 @@ struct GalleryView: View {
                         .zIndex(entry.wallZIndex ?? 0)
                     }
                 }
-                // 只在“照片增删”和“下拉整理”这两个明确时机做动画，
-                // 拖动过程不进入这里（拖动是 PinnedPhoto 内部的本地位移）。
+                // 照片按时间自动码放；增删时轻微动画，位置不再由用户手动拖动。
                 .animation(
                     .spring(response: 0.48, dampingFraction: 0.82),
                     value: store.savedEntries.count
                 )
-                .animation(
-                    .spring(response: 0.55, dampingFraction: 0.78),
-                    value: reorgTick
-                )
             }
             .frame(height: wallContentHeight)
         }
-        // 从顶部下拉即可把整面墙重新码齐——拖动过的照片久了会挡住新照片的落点。
-        .refreshable {
-            await reorganizeWall()
-        }
-    }
-
-    /// 是否有照片被用户亲手挪动过——只有这时整理才有意义。
-    private var hasManuallyPlacedPhotos: Bool {
-        store.savedEntries.contains { $0.wallIsManual == true }
-    }
-
-    /// 下拉刷新时整理照片墙：清掉手动摆放标记，全部按时间重新排布。
-    @MainActor
-    private func reorganizeWall() async {
-        guard !store.savedEntries.isEmpty else { return }
-        UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
-        store.reorganizeWall()
-        reorgTick += 1
-        // 留一点时间让下拉指示器收回、照片飞回位的动画放完。
-        try? await Task.sleep(for: .milliseconds(520))
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
     private var wallContentHeight: CGFloat {
@@ -879,11 +828,6 @@ private struct PinnedPhoto: View {
     let rotation: Double
     let showDetail: () -> Void
     let requestDelete: () -> Void
-    /// 拖动结束后把落点交回上层保存；参数是相对墙宽的 X 与绝对 Y。
-    var commitDrag: ((CGSize) -> Void)?
-
-    @State private var dragTranslation: CGSize = .zero
-    @State private var isDragging = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -898,46 +842,9 @@ private struct PinnedPhoto: View {
                 .offset(y: -7)
         }
         .padding(.top, 7)
-        // 拖动时抬起、摆正、加深阴影，像把照片从墙上取下来拿在手里。
-        .rotationEffect(.degrees(isDragging ? 0 : rotation))
-        .scaleEffect(isDragging ? 1.06 : 1)
-        .shadow(
-            color: .black.opacity(isDragging ? 0.28 : 0),
-            radius: isDragging ? 14 : 0,
-            y: isDragging ? 10 : 0
-        )
-        // 位移必须瞬时跟手：offset 放在“拿起/放下”动画修饰器之后，
-        // 并显式关掉它的隐式动画，否则位移会被卷进那条动画曲线，
-        // 出现“图钉先动、照片两三秒后才追上”的割裂感。
-        .animation(.easeOut(duration: 0.18), value: isDragging)
-        .offset(dragTranslation)
-        .animation(nil, value: dragTranslation)
-        .zIndex(isDragging ? 1000 : (entry.wallZIndex ?? 0))
-        .contentShape(Rectangle())
-        .gesture(
-            // 长按后才进入拖动，避免与轻点翻卡、滚动照片墙抢手势。
-            LongPressGesture(minimumDuration: 0.28)
-                .sequenced(before: DragGesture(coordinateSpace: .local))
-                .onChanged { value in
-                    guard case let .second(_, drag?) = value else { return }
-                    if !isDragging {
-                        isDragging = true
-                        UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
-                    }
-                    dragTranslation = drag.translation
-                }
-                .onEnded { _ in
-                    guard isDragging else { return }
-                    isDragging = false
-                    let finalTranslation = dragTranslation
-                    // 先把落点写进 store（position 一步到位），同一帧内再归零 offset，
-                    // 关掉 offset 的隐式动画后二者叠加不会产生“先归零再飞过去”的闪动。
-                    commitDrag?(finalTranslation)
-                    dragTranslation = .zero
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                }
-        )
-        .accessibilityLabel("轻点翻看情绪卡片，长按可拖动摆放")
+        .rotationEffect(.degrees(rotation))
+        .zIndex(entry.wallZIndex ?? 0)
+        .accessibilityLabel("轻点翻看情绪卡片")
     }
 }
 
@@ -1041,13 +948,14 @@ private struct CompactEmotionCardBack: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10 * scale) {
             HStack {
-                Text("MOOD CARD")
-                    .font(.system(size: 10 * scale, weight: .black, design: .rounded))
+                Text(effectiveEmotion?.displayName ?? "MOOD")
+                    .font(.system(size: 11 * scale, weight: .black, design: .rounded))
                     .tracking(1.2 * scale)
+                    .foregroundStyle(palette.ink)
                 Spacer()
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 12 * scale, weight: .bold))
-                    .foregroundStyle(Color(red: 0.91, green: 0.30, blue: 0.50))
+                Image(systemName: palette.motif)
+                    .font(.system(size: 13 * scale, weight: .bold))
+                    .foregroundStyle(palette.ink)
             }
 
             Spacer(minLength: 0)
@@ -1061,22 +969,23 @@ private struct CompactEmotionCardBack: View {
 
                 Text(entry.psychologyNote ?? "")
                     .font(.system(size: 11 * scale, weight: .medium, design: .rounded))
-                    .foregroundStyle(.black.opacity(0.62))
+                    .foregroundStyle(palette.ink.opacity(0.7))
                     .lineLimit(5)
             } else {
                 Text(effectiveEmotion?.displayName ?? "还没有选择心情")
                     .font(.system(size: 20 * scale, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color(red: 0.45, green: 0.14, blue: 0.25))
+                    .foregroundStyle(palette.ink)
                     .lineLimit(1)
                 if let note = entry.note, !note.isEmpty {
                     Text(note)
                         .font(.system(size: 12 * scale, weight: .medium, design: .rounded))
+                        .foregroundStyle(palette.ink.opacity(0.82))
                         .lineLimit(cardWidth > 230 ? 3 : 2)
                 }
 
                 Text(entry.aiSummary ?? "正在感受这一刻…")
                     .font(.system(size: 13 * scale, weight: .semibold, design: .serif))
-                    .foregroundStyle(.black.opacity(0.70))
+                    .foregroundStyle(palette.ink.opacity(0.7))
                     .lineLimit(cardWidth > 230 ? 4 : 3)
             }
 
@@ -1085,18 +994,30 @@ private struct CompactEmotionCardBack: View {
             HStack {
                 Text(entry.createdAt.formatted(date: .numeric, time: .omitted))
                     .font(.system(size: 8 * scale, design: .monospaced))
-                    .foregroundStyle(.black.opacity(0.45))
+                    .foregroundStyle(palette.ink.opacity(0.5))
                 Spacer()
                 Image(systemName: "rotate.3d")
                     .font(.system(size: 11 * scale, weight: .bold))
-                    .foregroundStyle(Color(red: 0.72, green: 0.20, blue: 0.38))
+                    .foregroundStyle(palette.ink.opacity(0.65))
             }
         }
         .padding(16 * scale)
         .frame(width: cardWidth, height: cardHeight)
-        .background(
-            palette.paper
-        )
+        .background {
+            ZStack {
+                LinearGradient(
+                    colors: palette.backGradient,
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                // 大幅淡描水印，强化每种情绪的气质差异。
+                Image(systemName: palette.motif)
+                    .font(.system(size: 150 * scale, weight: .bold))
+                    .foregroundStyle(palette.motifTint)
+                    .rotationEffect(.degrees(-12))
+                    .offset(x: cardWidth * 0.28, y: cardHeight * 0.26)
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: max(3, 5 * scale), style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: max(3, 5 * scale), style: .continuous)
