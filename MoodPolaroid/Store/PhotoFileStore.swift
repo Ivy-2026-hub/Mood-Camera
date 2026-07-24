@@ -11,13 +11,10 @@ struct PhotoFileStore {
     }
 
     func save(_ image: UIImage, id: UUID) throws -> String {
-        // 先把 EXIF 方向烘进像素，得到“按用户当时握持姿态摆正”的画面；
-        // 若这时仍是横图，再顺时针转 90° 放上竖版相纸——与相册导入同一条规则。
+        // 方向规则已经在 PhotoCaptureProcessor 里统一处理完（摆正 → 横图转竖 → 裁切），
+        // 这里只做一次归一化兜底，绝不能再转一次，否则会二次旋转。
         let normalizedImage = image.normalizedForStorage()
-        let filmImage = normalizedImage.size.width > normalizedImage.size.height
-            ? normalizedImage.rotatedClockwiseForPortraitFilm()
-            : normalizedImage
-        guard let data = filmImage.jpegData(compressionQuality: 0.9) else {
+        guard let data = normalizedImage.jpegData(compressionQuality: 0.9) else {
             throw PhotoFileStoreError.cannotCreateJPEG
         }
 
