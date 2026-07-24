@@ -1027,14 +1027,16 @@ private struct CompactEmotionCardBack: View {
     }
 
     private var palette: MoodPalette {
-        MoodPalette.resolve(entry.palette)
+        // 配色跟随当前情绪（用户改后的优先），和正面、卡片背面保持一致；
+        // 不再读 AI 的 palette 字段——导入照片没跑 AI 时那个字段是空的，
+        // 会让所有卡片都退回 neutral 米色，背景对不上情绪。
+        MoodPalette.forEmotion(entry.userEmotion ?? entry.aiEmotion)
     }
 
     private var hasStructuredMoodCard: Bool {
         entry.moodCode != nil
             || entry.encouragement != nil
             || entry.psychologyNote != nil
-            || entry.palette != nil
     }
 }
 
