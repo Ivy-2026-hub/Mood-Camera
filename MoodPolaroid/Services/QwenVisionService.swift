@@ -4,7 +4,7 @@ import UIKit
 /// 通过阿里云百炼 OpenAI 兼容 Chat Completions 接口调用 Qwen 视觉模型。
 struct QwenVisionService: AIService {
     private static let endpoint = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!
-    private static let model = "qwen3.7-plus"
+    private static let model = "qwen3.7-max"
     private static let maxImagePixelSize: CGFloat = 1280
     private static let requestTimeout: TimeInterval = 30
 
