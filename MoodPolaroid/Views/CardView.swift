@@ -4,8 +4,10 @@ import UIKit
 /// 产品中用来展示单条 MoodEntry 打印过程、正反面内容与用户情绪修正的卡片页。
 struct CardView: View {
     @EnvironmentObject private var store: MoodEntryStore
+    @EnvironmentObject private var networkMonitor: NetworkMonitor
 
     let entry: MoodEntry
+    let aiService: any AIService
     let openGallery: (() -> Void)?
     let playsDevelopmentAnimation: Bool
 
@@ -22,10 +24,12 @@ struct CardView: View {
 
     init(
         entry: MoodEntry,
+        aiService: any AIService,
         openGallery: (() -> Void)?,
         playsDevelopmentAnimation: Bool = true
     ) {
         self.entry = entry
+        self.aiService = aiService
         self.openGallery = openGallery
         self.playsDevelopmentAnimation = playsDevelopmentAnimation
         _developmentDidFinish = State(initialValue: !playsDevelopmentAnimation)
@@ -101,9 +105,11 @@ struct CardView: View {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                     } else if currentEntry.cardState == .failed {
-                        Label("这次没分析成功，可以重试", systemImage: "exclamationmark.triangle")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                        Button(action: retryGeneration) {
+                            Label("生成失败，可重试", systemImage: "arrow.clockwise")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .buttonStyle(.bordered)
                     } else {
                         Label("正在分析这一刻…", systemImage: "sparkles")
                             .font(.caption.weight(.semibold))
@@ -204,6 +210,21 @@ struct CardView: View {
         store.update(updatedEntry)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
+
+    private func retryGeneration() {
+        var updatedEntry = currentEntry
+        updatedEntry.cardState = .pending
+        store.update(updatedEntry)
+
+        Task { @MainActor in
+            await generateMoodCard(
+                entryID: updatedEntry.id,
+                using: aiService,
+                store: store,
+                isNetworkConnected: networkMonitor.isConnected
+            )
+        }
+    }
 }
 
 /// 产品中拍立得卡片翻面后展示 AI 总结、生成状态并允许用户修正情绪的背面。
@@ -256,17 +277,17 @@ struct EmotionCardBack: View {
             } label: {
                 HStack(spacing: 9) {
                     Circle()
-                        .fill(Color(red: 0.96, green: 0.52, blue: 0.66))
+                        .fill(palette.capsule)
                         .frame(width: 12, height: 12)
                     Text(effectiveEmotion?.displayName ?? "选择情绪")
                         .font(.system(size: 18, weight: .bold, design: .rounded))
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.caption2.weight(.bold))
                 }
-                .foregroundStyle(Color(red: 0.40, green: 0.12, blue: 0.22))
+                .foregroundStyle(palette.ink)
                 .padding(.horizontal, 18)
                 .frame(height: 48)
-                .background(Color(red: 1.0, green: 0.88, blue: 0.92), in: Capsule())
+                .background(palette.capsule, in: Capsule())
             }
 
             Spacer(minLength: 0)
@@ -288,11 +309,7 @@ struct EmotionCardBack: View {
         .padding(28)
         .frame(width: cardWidth, height: cardHeight)
         .background(
-            LinearGradient(
-                colors: [Color(red: 1.0, green: 0.98, blue: 0.94), Color(red: 0.98, green: 0.89, blue: 0.91)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            palette.paper
         )
         .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
         .overlay {
@@ -314,14 +331,28 @@ struct EmotionCardBack: View {
                     .foregroundStyle(.secondary)
             }
         case .generated:
-            VStack(spacing: 12) {
-                Image(systemName: "quote.opening")
-                    .font(.title2)
-                    .foregroundStyle(Color(red: 0.91, green: 0.30, blue: 0.50))
-                Text(entry.aiSummary ?? "今天的光看起来很温柔")
-                    .font(.system(size: 24, weight: .semibold, design: .serif))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(Color(red: 0.22, green: 0.16, blue: 0.18))
+            if hasStructuredMoodCard {
+                VStack(spacing: 18) {
+                    Text(entry.encouragement ?? "")
+                        .font(.system(size: 23, weight: .semibold, design: .rounded))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(palette.ink)
+
+                    Text(entry.psychologyNote ?? "")
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.black.opacity(0.62))
+                }
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "quote.opening")
+                        .font(.title2)
+                        .foregroundStyle(Color(red: 0.91, green: 0.30, blue: 0.50))
+                    Text(entry.aiSummary ?? "今天的光看起来很温柔")
+                        .font(.system(size: 24, weight: .semibold, design: .serif))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Color(red: 0.22, green: 0.16, blue: 0.18))
+                }
             }
         case .failed:
             ContentUnavailableView(
@@ -335,9 +366,20 @@ struct EmotionCardBack: View {
     private var stateColor: Color {
         switch entry.cardState {
         case .pending: .orange
-        case .generated: .green
+        case .generated: palette.ink
         case .failed: .red
         }
+    }
+
+    private var palette: MoodPalette {
+        MoodPalette.resolve(entry.palette)
+    }
+
+    private var hasStructuredMoodCard: Bool {
+        entry.moodCode != nil
+            || entry.encouragement != nil
+            || entry.psychologyNote != nil
+            || entry.palette != nil
     }
 }
 

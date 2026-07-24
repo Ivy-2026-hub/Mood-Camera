@@ -23,6 +23,7 @@ enum Emotion: String, Codable, CaseIterable, Identifiable {
     case calm
     case tired
     case sad
+    case bored
     case other
 
     var id: Self { self }
@@ -33,6 +34,7 @@ enum Emotion: String, Codable, CaseIterable, Identifiable {
         case .calm: "平静"
         case .tired: "疲惫"
         case .sad: "难过"
+        case .bored: "无聊"
         case .other: "其他"
         }
     }
@@ -67,6 +69,10 @@ struct MoodEntry: Identifiable, Codable, Equatable {
     var userEmotion: Emotion?
     var aiEmotion: Emotion?
     var aiSummary: String?
+    var moodCode: String?
+    var encouragement: String?
+    var psychologyNote: String?
+    var palette: String?
     var cardState: CardState
     var wallPositionX: Double?
     var wallPositionY: Double?
@@ -88,6 +94,10 @@ struct MoodEntry: Identifiable, Codable, Equatable {
         userEmotion: Emotion? = nil,
         aiEmotion: Emotion? = nil,
         aiSummary: String? = nil,
+        moodCode: String? = nil,
+        encouragement: String? = nil,
+        psychologyNote: String? = nil,
+        palette: String? = nil,
         cardState: CardState = .pending,
         wallPositionX: Double? = nil,
         wallPositionY: Double? = nil,
@@ -106,6 +116,10 @@ struct MoodEntry: Identifiable, Codable, Equatable {
         self.userEmotion = userEmotion
         self.aiEmotion = aiEmotion
         self.aiSummary = aiSummary
+        self.moodCode = moodCode
+        self.encouragement = encouragement
+        self.psychologyNote = psychologyNote
+        self.palette = palette
         self.cardState = cardState
         self.wallPositionX = wallPositionX
         self.wallPositionY = wallPositionY

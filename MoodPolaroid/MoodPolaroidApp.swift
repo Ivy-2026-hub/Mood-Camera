@@ -8,8 +8,7 @@ struct MoodPolaroidApp: App {
 
     var body: some Scene {
         WindowGroup {
-            // Day 5 在这里替换成真实模型：把 DummyAIService() 改成真实 AIService 实现。
-            RootView(aiService: DummyAIService())
+            RootView(aiService: QwenVisionService())
                 .environmentObject(store)
                 .environmentObject(networkMonitor)
         }

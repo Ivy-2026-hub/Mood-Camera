@@ -1021,21 +1021,33 @@ private struct CompactEmotionCardBack: View {
 
             Spacer(minLength: 0)
 
-            Text(effectiveEmotion?.displayName ?? "还没有选择心情")
-                .font(.system(size: 20 * scale, weight: .bold, design: .rounded))
-                .foregroundStyle(Color(red: 0.45, green: 0.14, blue: 0.25))
-                .lineLimit(1)
+            if hasStructuredMoodCard {
+                Text(entry.encouragement ?? "")
+                    .font(.system(size: 18 * scale, weight: .semibold, design: .rounded))
+                    .foregroundStyle(palette.ink)
+                    .lineLimit(4)
+                    .multilineTextAlignment(.leading)
 
-            if let note = entry.note, !note.isEmpty {
-                Text(note)
-                    .font(.system(size: 12 * scale, weight: .medium, design: .rounded))
-                    .lineLimit(cardWidth > 230 ? 3 : 2)
+                Text(entry.psychologyNote ?? "")
+                    .font(.system(size: 11 * scale, weight: .medium, design: .rounded))
+                    .foregroundStyle(.black.opacity(0.62))
+                    .lineLimit(5)
+            } else {
+                Text(effectiveEmotion?.displayName ?? "还没有选择心情")
+                    .font(.system(size: 20 * scale, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color(red: 0.45, green: 0.14, blue: 0.25))
+                    .lineLimit(1)
+                if let note = entry.note, !note.isEmpty {
+                    Text(note)
+                        .font(.system(size: 12 * scale, weight: .medium, design: .rounded))
+                        .lineLimit(cardWidth > 230 ? 3 : 2)
+                }
+
+                Text(entry.aiSummary ?? "正在感受这一刻…")
+                    .font(.system(size: 13 * scale, weight: .semibold, design: .serif))
+                    .foregroundStyle(.black.opacity(0.70))
+                    .lineLimit(cardWidth > 230 ? 4 : 3)
             }
-
-            Text(entry.aiSummary ?? "正在感受这一刻…")
-                .font(.system(size: 13 * scale, weight: .semibold, design: .serif))
-                .foregroundStyle(.black.opacity(0.70))
-                .lineLimit(cardWidth > 230 ? 4 : 3)
 
             Spacer(minLength: 0)
 
@@ -1052,11 +1064,7 @@ private struct CompactEmotionCardBack: View {
         .padding(16 * scale)
         .frame(width: cardWidth, height: cardHeight)
         .background(
-            LinearGradient(
-                colors: [Color(red: 1.0, green: 0.98, blue: 0.94), Color(red: 0.98, green: 0.89, blue: 0.91)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            palette.paper
         )
         .clipShape(RoundedRectangle(cornerRadius: max(3, 5 * scale), style: .continuous))
         .overlay {
@@ -1064,6 +1072,17 @@ private struct CompactEmotionCardBack: View {
                 .stroke(.white.opacity(0.72), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.20), radius: 10 * scale, y: 6 * scale)
+    }
+
+    private var palette: MoodPalette {
+        MoodPalette.resolve(entry.palette)
+    }
+
+    private var hasStructuredMoodCard: Bool {
+        entry.moodCode != nil
+            || entry.encouragement != nil
+            || entry.psychologyNote != nil
+            || entry.palette != nil
     }
 }
 

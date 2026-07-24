@@ -5,6 +5,10 @@ import Network
 struct AIResult: Sendable {
     let emotion: Emotion
     let summary: String
+    let moodCode: String
+    let encouragement: String
+    let psychologyNote: String
+    let palette: String
 }
 
 /// 产品中生成情绪卡片内容的抽象接口，页面与存储不依赖具体模型供应商。
@@ -31,7 +35,11 @@ struct DummyAIService: AIService {
         try await Task.sleep(for: .seconds(1.5))
         return AIResult(
             emotion: .calm,
-            summary: "今天的光看起来很温柔"
+            summary: "今天的光看起来很温柔",
+            moodCode: "靠窗的一小块太阳",
+            encouragement: "把这点亮光带在身上再走一会儿",
+            psychologyNote: "具身认知会让明亮的环境轻轻托住当下的心情",
+            palette: "sunny"
         )
     }
 }
@@ -58,7 +66,7 @@ final class NetworkMonitor: ObservableObject {
     }
 }
 
-/// 产品中唯一的情绪生成入口：网络不可用时保留待生成，其余错误才标记失败。
+/// 产品中唯一的情绪生成入口：开始请求前无网络时保留待生成；请求开始后的所有错误均标记失败。
 @MainActor
 func generateMoodCard(
     entryID: MoodEntry.ID,
@@ -80,30 +88,15 @@ func generateMoodCard(
         guard var latestEntry = store.entries.first(where: { $0.id == entryID }) else { return }
         latestEntry.aiEmotion = result.emotion
         latestEntry.aiSummary = result.summary
+        latestEntry.moodCode = result.moodCode
+        latestEntry.encouragement = result.encouragement
+        latestEntry.psychologyNote = result.psychologyNote
+        latestEntry.palette = result.palette
         latestEntry.cardState = .generated
         store.update(latestEntry)
     } catch {
-        guard !isRecoverableNetworkError(error),
-              var latestEntry = store.entries.first(where: { $0.id == entryID }) else {
-            return
-        }
+        guard var latestEntry = store.entries.first(where: { $0.id == entryID }) else { return }
         latestEntry.cardState = .failed
         store.update(latestEntry)
     }
-}
-
-/// 产品中用来区分“稍后重试”和“确实生成失败”的错误判断。
-private func isRecoverableNetworkError(_ error: Error) -> Bool {
-    if case AIServiceError.networkUnavailable = error {
-        return true
-    }
-    guard let urlError = error as? URLError else { return false }
-    return [
-        .notConnectedToInternet,
-        .networkConnectionLost,
-        .cannotFindHost,
-        .cannotConnectToHost,
-        .dnsLookupFailed,
-        .timedOut
-    ].contains(urlError.code)
 }

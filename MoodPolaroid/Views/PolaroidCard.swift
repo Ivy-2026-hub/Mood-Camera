@@ -168,12 +168,28 @@ struct PolaroidCard: View {
                 )
 
             VStack(spacing: 8 * cardScale) {
-                Text(captionText)
-                    .font(.system(size: 18 * cardScale, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color(red: 0.12, green: 0.16, blue: 0.22))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
+                if hasStructuredMoodCard {
+                    Text(entry.moodCode ?? captionText)
+                        .font(.custom("Chalkboard SE", size: 25 * cardScale))
+                        .foregroundStyle(palette.ink)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+
+                    Text(entry.aiSummary ?? captionText)
+                        .font(.system(size: 13 * cardScale, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color(red: 0.18, green: 0.17, blue: 0.16))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Text(captionText)
+                        .font(.system(size: 18 * cardScale, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color(red: 0.12, green: 0.16, blue: 0.22))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                }
 
                 Spacer(minLength: 0)
 
@@ -239,14 +255,14 @@ struct PolaroidCard: View {
                     .foregroundStyle(
                         entry.cameraStyle == .ccd
                             ? Color.white
-                            : Color(red: 0.76, green: 0.20, blue: 0.38)
+                            : palette.ink
                     )
                     .padding(.horizontal, 7 * cardScale)
                     .padding(.vertical, 3 * cardScale)
                     .background(
                         entry.cameraStyle == .ccd
                             ? Color.black.opacity(0.48)
-                            : Color(red: 1.0, green: 0.88, blue: 0.92),
+                            : palette.capsule,
                         in: Capsule()
                     )
             }
@@ -383,16 +399,7 @@ struct PolaroidCard: View {
     }
 
     private var cardBackgroundColor: Color {
-        if entry.cameraStyle == .ccd {
-            return Color(red: 0.12, green: 0.11, blue: 0.10)
-        }
-
-        guard let skin = CameraSkins.named(entry.cameraSkinID),
-              let paperID = entry.paperID,
-              let paper = skin.papers.first(where: { $0.id == paperID }) else {
-            return Color(red: 0.99, green: 0.985, blue: 0.97)
-        }
-        return color(from: paper.colorHex)
+        MoodPalette.resolve(entry.palette).paper
     }
 
     private func color(from hex: String) -> Color {
@@ -409,6 +416,17 @@ struct PolaroidCard: View {
 
     private var effectiveEmotion: Emotion? {
         entry.userEmotion ?? entry.aiEmotion
+    }
+
+    private var palette: MoodPalette {
+        MoodPalette.resolve(entry.palette)
+    }
+
+    private var hasStructuredMoodCard: Bool {
+        entry.moodCode != nil
+            || entry.encouragement != nil
+            || entry.psychologyNote != nil
+            || entry.palette != nil
     }
 
     private var paperRotation: Double {

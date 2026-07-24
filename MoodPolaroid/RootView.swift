@@ -39,6 +39,7 @@ struct RootView: View {
                     if let entry = store.entries.first(where: { $0.id == entryID }) {
                         CardView(
                             entry: entry,
+                            aiService: aiService,
                             openGallery: showGallery,
                             playsDevelopmentAnimation: entry.cameraStyle == .polaroid
                         )
