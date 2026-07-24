@@ -239,6 +239,19 @@ struct GalleryView: View {
         ScrollView {
             GeometryReader { proxy in
                 ZStack(alignment: .topLeading) {
+                    // 有照片被挪动过才提示，等于告诉用户“这面墙现在可以整理一下”。
+                    if hasManuallyPlacedPhotos {
+                        Label("下拉整理照片墙", systemImage: "arrow.down")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.black.opacity(0.42))
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 5)
+                            .background(.white.opacity(0.62), in: Capsule())
+                            .position(x: proxy.size.width / 2, y: 26)
+                            .allowsHitTesting(false)
+                            .transition(.opacity)
+                    }
+
                     ForEach(store.savedEntries) { entry in
                         PinnedPhoto(
                             entry: entry,
@@ -267,9 +280,41 @@ struct GalleryView: View {
                     .spring(response: 0.48, dampingFraction: 0.82),
                     value: store.savedEntries.map(\.id)
                 )
+                // 整理后照片要看得见地飞回各自的位置，而不是瞬间跳过去。
+                .animation(
+                    .spring(response: 0.55, dampingFraction: 0.78),
+                    value: wallLayoutSignature
+                )
             }
             .frame(height: wallContentHeight)
         }
+        // 从顶部下拉即可把整面墙重新码齐——拖动过的照片久了会挡住新照片的落点。
+        .refreshable {
+            await reorganizeWall()
+        }
+    }
+
+    /// 是否有照片被用户亲手挪动过——只有这时整理才有意义。
+    private var hasManuallyPlacedPhotos: Bool {
+        store.savedEntries.contains { $0.wallIsManual == true }
+    }
+
+    /// 墙面布局的指纹：任意一张照片的位置或层级变化都会触发重排动画。
+    private var wallLayoutSignature: String {
+        store.savedEntries
+            .map { "\($0.id.uuidString.prefix(4))\($0.wallPositionX ?? 0)\($0.wallPositionY ?? 0)" }
+            .joined()
+    }
+
+    /// 下拉刷新时整理照片墙：清掉手动摆放标记，全部按时间重新排布。
+    @MainActor
+    private func reorganizeWall() async {
+        guard !store.savedEntries.isEmpty else { return }
+        UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+        store.reorganizeWall()
+        // 留一点时间让下拉指示器收回、照片飞回位的动画放完。
+        try? await Task.sleep(for: .milliseconds(520))
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
     private var wallContentHeight: CGFloat {
