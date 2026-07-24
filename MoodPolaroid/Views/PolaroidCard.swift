@@ -139,7 +139,9 @@ struct PolaroidCard: View {
         .scaleEffect(isPaperAtRest ? 1 : 0.95)
         .offset(y: isPaperAtRest ? 0 : PolaroidAnimationTiming.ejectionTravel)
         .rotationEffect(.degrees(paperRotation))
-        .task {
+        // 用文件名当 id：同一张照片只解码一次。之前是裸 .task，拖动时视图反复
+        // 重建会不停重新解码磁盘图片，造成“照片比图钉慢半拍才跟上”的割裂感。
+        .task(id: entry.imageFileName) {
             photoImage = PhotoFileStore().loadImage(
                 fileName: entry.imageFileName,
                 maxPixelSize: max(500, cardWidth * 4)
@@ -404,7 +406,7 @@ struct PolaroidCard: View {
     }
 
     private var cardBackgroundColor: Color {
-        MoodPalette.resolve(entry.palette).paper
+        palette.paper
     }
 
     private func color(from hex: String) -> Color {
@@ -424,7 +426,8 @@ struct PolaroidCard: View {
     }
 
     private var palette: MoodPalette {
-        MoodPalette.resolve(entry.palette)
+        // 配色跟随当前情绪（用户改后的优先），改心情即换模板。
+        MoodPalette.forEmotion(entry.userEmotion ?? entry.aiEmotion)
     }
 
     private var hasStructuredMoodCard: Bool {

@@ -19,6 +19,20 @@ enum MoodPalette: String, CaseIterable {
         return palette
     }
 
+    /// 情绪 → 配色映射。卡片配色跟着“当前情绪”走，所以用户在卡片上改了心情，
+    /// 纸张、口令字和胶囊颜色会立刻跟着一起变；每种情绪一套辨识度分明的模板。
+    static func forEmotion(_ emotion: Emotion?) -> Self {
+        guard let emotion else { return .neutral }
+        switch emotion {
+        case .happy: return .sunny
+        case .calm: return .calm
+        case .tired: return .dusk
+        case .bored: return .neutral
+        case .sad: return .rain
+        case .other: return .neutral
+        }
+    }
+
     var paper: Color {
         switch self {
         case .sunny: color(from: "#FFF8E7")
