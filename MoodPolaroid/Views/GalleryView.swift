@@ -4,6 +4,8 @@ import UIKit
 
 /// 产品中同一批照片可选择的图钉墙或翻页拍立得相册展示方式。
 private enum GalleryDisplayMode: String, CaseIterable, Identifiable {
+    /// 上下分栏的入口选择页；进入相册先落在这里。
+    case chooser
     case pinboard
     case album
 
@@ -11,17 +13,32 @@ private enum GalleryDisplayMode: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
+        case .chooser: "收藏"
         case .pinboard: "图钉墙"
-        case .album: "翻页相册"
+        case .album: "相簿"
         }
     }
 
     var systemImage: String {
         switch self {
+        case .chooser: "rectangle.split.1x2.fill"
         case .pinboard: "pin.fill"
         case .album: "book.closed.fill"
         }
     }
+}
+
+/// 相簿分册规则：一周 7 天、每天 4 张，一本装满 28 张后自动开新的一本。
+private enum AlbumCapacity {
+    static let photosPerPage = 4
+    static let pagesPerBook = 7
+    static var photosPerBook: Int { photosPerPage * pagesPerBook }
+}
+
+/// 入口选择页两块可替换的背景图资源名；图片放进 Assets 后即可生效，无需改代码。
+private enum GalleryEntryBackground {
+    static let pinboard = "gallery_entry_pinboard"
+    static let shelf = "gallery_entry_shelf"
 }
 
 /// 产品中让图钉墙和翻页相册共享同一批本地情绪照片的收藏页面。
@@ -32,7 +49,9 @@ struct GalleryView: View {
     let openCapture: () -> Void
 
     @State private var selectedEntry: MoodEntry?
-    @AppStorage("galleryDisplayMode") private var displayModeRawValue = GalleryDisplayMode.pinboard.rawValue
+    @AppStorage("galleryDisplayMode") private var displayModeRawValue = GalleryDisplayMode.chooser.rawValue
+    /// 当前打开的是第几本相簿（0 起）。
+    @AppStorage("galleryCurrentBook") private var currentBookIndex = 0
     @AppStorage("galleryCurrentAlbumPage") private var currentAlbumPage = 0
     @State private var importedPhotoItem: PhotosPickerItem?
     @State private var isImporting = false
@@ -48,7 +67,9 @@ struct GalleryView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                displayModePicker
+                if displayMode != .chooser {
+                    modeBackBar
+                }
 
                 if !store.missingPhotoEntryIDs.isEmpty {
                     missingPhotoBanner
@@ -58,6 +79,8 @@ struct GalleryView: View {
                     emptyWall
                 } else {
                     switch displayMode {
+                    case .chooser:
+                        galleryEntryChooser
                     case .pinboard:
                         photoWall
                     case .album:
@@ -93,10 +116,10 @@ struct GalleryView: View {
             }
         }
         .onChange(of: store.entries.count) { _, _ in
-            currentAlbumPage = min(currentAlbumPage, max(0, albumPages.count - 1))
+            clampAlbumIndices()
         }
         .onAppear {
-            currentAlbumPage = min(currentAlbumPage, max(0, albumPages.count - 1))
+            clampAlbumIndices()
         }
         .alert(
             "导入失败",
@@ -145,6 +168,8 @@ struct GalleryView: View {
     @ViewBuilder
     private var galleryBackground: some View {
         switch displayMode {
+        case .chooser:
+            Color(white: 0.94)
         case .pinboard:
             PhotoWallBackground()
         case .album:
@@ -156,21 +181,38 @@ struct GalleryView: View {
         }
     }
 
-    private var displayModePicker: some View {
-        Picker("照片收藏方式", selection: displayModeBinding) {
-            ForEach(GalleryDisplayMode.allCases) { mode in
-                Label(mode.displayName, systemImage: mode.systemImage)
-                    .tag(mode)
+    /// 进入图钉墙或相簿之后，顶部一条返回选择页的横条。
+    private var modeBackBar: some View {
+        HStack(spacing: 6) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    displayModeRawValue = GalleryDisplayMode.chooser.rawValue
+                }
+            } label: {
+                Label("收藏", systemImage: "chevron.left")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
             }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Text(displayMode == .album ? albumBookSubtitle : "图钉墙")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
         }
-        .pickerStyle(.segmented)
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(.ultraThinMaterial)
     }
 
     private var displayMode: GalleryDisplayMode {
-        GalleryDisplayMode(rawValue: displayModeRawValue) ?? .pinboard
+        GalleryDisplayMode(rawValue: displayModeRawValue) ?? .chooser
+    }
+
+    /// 删除照片后册数和页数都可能缩水，统一钳回合法范围，避免出现空册空页。
+    private func clampAlbumIndices() {
+        currentBookIndex = min(max(0, currentBookIndex), max(0, albumBooks.count - 1))
+        currentAlbumPage = min(max(0, currentAlbumPage), max(0, albumPages.count - 1))
     }
 
     private var displayModeBinding: Binding<GalleryDisplayMode> {
@@ -265,10 +307,94 @@ struct GalleryView: View {
         .padding(.bottom, 14)
     }
 
+    /// 按 28 张一本分册；最新的照片在第一本。
+    private var albumBooks: [[MoodEntry]] {
+        let size = AlbumCapacity.photosPerBook
+        guard !store.entries.isEmpty else { return [] }
+        return stride(from: 0, to: store.entries.count, by: size).map { start in
+            let end = min(start + size, store.entries.count)
+            return Array(store.entries[start..<end])
+        }
+    }
+
+    /// 当前这一本里的照片；册号越界时退回第一本。
+    private var currentBookEntries: [MoodEntry] {
+        let books = albumBooks
+        guard !books.isEmpty else { return [] }
+        return books[min(max(0, currentBookIndex), books.count - 1)]
+    }
+
+    /// 只在当前这一本内部按每页 4 张分页，翻页不会跨册。
     private var albumPages: [[MoodEntry]] {
-        stride(from: 0, to: store.entries.count, by: 4).map { startIndex in
-            let endIndex = min(startIndex + 4, store.entries.count)
-            return Array(store.entries[startIndex..<endIndex])
+        let entries = currentBookEntries
+        let size = AlbumCapacity.photosPerPage
+        guard !entries.isEmpty else { return [] }
+        return stride(from: 0, to: entries.count, by: size).map { start in
+            let end = min(start + size, entries.count)
+            return Array(entries[start..<end])
+        }
+    }
+
+    /// 顶部横条上显示的册号与日期范围。
+    private var albumBookSubtitle: String {
+        let books = albumBooks
+        guard !books.isEmpty else { return "相簿" }
+        let index = min(max(0, currentBookIndex), books.count - 1)
+        let entries = books[index]
+        guard let newest = entries.first?.createdAt,
+              let oldest = entries.last?.createdAt else {
+            return "第 \(index + 1) 本"
+        }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M/d"
+        let range = entries.count == 1
+            ? formatter.string(from: newest)
+            : "\(formatter.string(from: oldest)) – \(formatter.string(from: newest))"
+        return "第 \(index + 1) 本 · \(range) · \(entries.count)/\(AlbumCapacity.photosPerBook)"
+    }
+
+    /// 上下分栏的入口选择页：上半图钉墙预览，下半书架相簿。
+    private var galleryEntryChooser: some View {
+        GeometryReader { proxy in
+            VStack(spacing: 12) {
+                GalleryEntryPanel(
+                    title: "图钉墙",
+                    subtitle: "\(store.entries.count) 张",
+                    systemImage: "pin.fill",
+                    backgroundImageName: GalleryEntryBackground.pinboard
+                ) {
+                    PinboardMiniPreview(entries: Array(store.entries.prefix(6)))
+                } action: {
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        displayModeRawValue = GalleryDisplayMode.pinboard.rawValue
+                    }
+                }
+
+                GalleryEntryPanel(
+                    title: "相簿",
+                    subtitle: "\(albumBooks.count) 本 · 每本 \(AlbumCapacity.photosPerBook) 张",
+                    systemImage: "books.vertical.fill",
+                    backgroundImageName: GalleryEntryBackground.shelf
+                ) {
+                    BookshelfMiniPreview(
+                        bookCount: albumBooks.count,
+                        selectedIndex: min(currentBookIndex, max(0, albumBooks.count - 1))
+                    ) { index in
+                        currentBookIndex = index
+                        currentAlbumPage = 0
+                        withAnimation(.easeInOut(duration: 0.22)) {
+                            displayModeRawValue = GalleryDisplayMode.album.rawValue
+                        }
+                    }
+                } action: {
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        displayModeRawValue = GalleryDisplayMode.album.rawValue
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
     }
 
@@ -1031,5 +1157,184 @@ private struct GalleryPhotoDetail: View {
 
     private var currentEntry: MoodEntry {
         store.entries.first(where: { $0.id == entry.id }) ?? entry
+    }
+}
+
+// MARK: - 相册入口选择页的三个组件
+
+/// 上下分栏里的一块：可选中、可按压，背景图之后放进 Assets 即自动生效。
+private struct GalleryEntryPanel<Preview: View>: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    /// 背景图资源名；Assets 里没有这张图时自动退回纯色底，不影响功能。
+    let backgroundImageName: String
+    @ViewBuilder let preview: () -> Preview
+    let action: () -> Void
+
+    @State private var isPressed = false
+
+    var body: some View {
+        ZStack {
+            // 有背景图就用图，没有就用纯色占位，两种都不影响交互。
+            if UIImage(named: backgroundImageName) != nil {
+                Image(backgroundImageName)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                LinearGradient(
+                    colors: [Color(white: 0.99), Color(white: 0.92)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+
+            preview()
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 52)
+
+            VStack {
+                Spacer()
+                HStack(spacing: 7) {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 13, weight: .bold))
+                    Text(title)
+                        .font(.system(size: 15, weight: .black, design: .rounded))
+                    Text(subtitle)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(.ultraThinMaterial)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(.black.opacity(0.08), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(isPressed ? 0.06 : 0.12), radius: isPressed ? 4 : 10, y: isPressed ? 2 : 5)
+        // 待选状态：按住轻微下沉并压暗，松开进入。
+        .scaleEffect(isPressed ? 0.985 : 1)
+        .brightness(isPressed ? -0.03 : 0)
+        .animation(.easeOut(duration: 0.16), value: isPressed)
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .onTapGesture(perform: action)
+        .onLongPressGesture(minimumDuration: 0.6, pressing: { pressing in
+            isPressed = pressing
+        }, perform: {})
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title)，\(subtitle)")
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// 图钉墙那一块里的缩小预览：用真实照片按墙面的错落感排一小片。
+private struct PinboardMiniPreview: View {
+    let entries: [MoodEntry]
+    private let photoFileStore = PhotoFileStore()
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                    MiniPhotoThumb(entry: entry, store: photoFileStore)
+                        .rotationEffect(.degrees(index.isMultiple(of: 2) ? -5 : 4))
+                        .position(
+                            x: proxy.size.width * (index.isMultiple(of: 2) ? 0.3 : 0.7),
+                            y: 34 + CGFloat(index / 2) * 62
+                        )
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+            .clipped()
+        }
+    }
+}
+
+/// 书架那一块：一排可点选的相簿书脊，点某一本直接进那一本。
+private struct BookshelfMiniPreview: View {
+    let bookCount: Int
+    let selectedIndex: Int
+    let openBook: (Int) -> Void
+
+    private let spineColors: [Color] = [
+        Color(red: 0.45, green: 0.24, blue: 0.18),
+        Color(red: 0.24, green: 0.33, blue: 0.42),
+        Color(red: 0.40, green: 0.36, blue: 0.22),
+        Color(red: 0.38, green: 0.26, blue: 0.36)
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+
+            HStack(alignment: .bottom, spacing: 7) {
+                ForEach(0..<max(1, bookCount), id: \.self) { index in
+                    Button {
+                        openBook(index)
+                    } label: {
+                        VStack(spacing: 4) {
+                            Text("\(index + 1)")
+                                .font(.system(size: 11, weight: .black, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.92))
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.top, 8)
+                        .frame(width: 26, height: index == selectedIndex ? 92 : 82)
+                        .background(
+                            spineColors[index % spineColors.count],
+                            in: RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        )
+                        .overlay(alignment: .leading) {
+                            Rectangle()
+                                .fill(.white.opacity(0.16))
+                                .frame(width: 2)
+                        }
+                        .shadow(color: .black.opacity(0.22), radius: 3, y: 2)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(bookCount == 0)
+                }
+            }
+
+            // 书架隔板
+            Rectangle()
+                .fill(Color(red: 0.36, green: 0.25, blue: 0.17))
+                .frame(height: 7)
+                .shadow(color: .black.opacity(0.25), radius: 3, y: 2)
+        }
+    }
+}
+
+/// 墙面缩略预览里的一张小照片。
+private struct MiniPhotoThumb: View {
+    let entry: MoodEntry
+    let store: PhotoFileStore
+    @State private var image: UIImage?
+
+    var body: some View {
+        ZStack {
+            Rectangle().fill(.white)
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .padding(3)
+                    .padding(.bottom, 9)
+            }
+        }
+        .frame(width: 54, height: 64)
+        .shadow(color: .black.opacity(0.16), radius: 3, y: 2)
+        .task(id: entry.id) {
+            image = store.loadImage(fileName: entry.imageFileName, maxPixelSize: 200)
+        }
     }
 }
