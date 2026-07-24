@@ -4,6 +4,9 @@ import Foundation
 @MainActor
 final class MoodEntryStore: ObservableObject {
     @Published private(set) var entries: [MoodEntry] = []
+
+    /// 相册、图钉墙、相簿和张数统计只看已保存的记录，草稿一律不露面。
+    var savedEntries: [MoodEntry] { entries.filter { $0.isDraft != true } }
     @Published private(set) var persistenceErrorMessage: String?
     @Published private(set) var missingPhotoEntryIDs: Set<MoodEntry.ID> = []
 
@@ -89,6 +92,17 @@ final class MoodEntryStore: ObservableObject {
             decoder.dateDecodingStrategy = .iso8601
             entries = try decoder.decode([MoodEntry].self, from: data)
             entries.sort { $0.createdAt > $1.createdAt }
+            // 上次退出时还没点保存的草稿视为已放弃：连同照片文件一起清掉，
+            // 避免留下相册里看不见、却一直占空间的孤儿记录。
+            let staleDrafts = entries.filter { $0.isDraft == true }
+            if !staleDrafts.isEmpty {
+                let photoStore = PhotoFileStore()
+                for draft in staleDrafts {
+                    try? photoStore.delete(fileName: draft.imageFileName)
+                }
+                entries.removeAll { $0.isDraft == true }
+                _ = save()
+            }
             let didMigrateLayout = migrateMissingWallLayouts()
             if didMigrateLayout {
                 save()
@@ -143,6 +157,8 @@ final class MoodEntryStore: ObservableObject {
     private func reflowWallLayouts() {
         let rotations = [-3.5, 2.4, -1.2, 3.2, 1.0, -2.6]
         for index in entries.indices {
+            // 草稿不进相册，也就不参与墙面排布。
+            guard entries[index].isDraft != true else { continue }
             // 手动摆放过的照片只补缺失字段，位置与层级都听用户的。
             guard entries[index].wallIsManual != true else {
                 if entries[index].wallRotation == nil {
@@ -159,6 +175,39 @@ final class MoodEntryStore: ObservableObject {
             // entries 是最新在前，越新层级越高，落在最上面。
             entries[index].wallZIndex = Double(entries.count - index)
         }
+    }
+
+    /// 用户点“保存心情卡片”：写入笔记与情绪，并把草稿转为正式记录进入相册。
+    @discardableResult
+    func commitDraft(id: UUID, note: String?, emotion: Emotion?) -> Bool {
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return false }
+        let previousEntries = entries
+        entries[index].note = note
+        entries[index].userEmotion = emotion
+        entries[index].isDraft = nil
+        reflowWallLayouts()
+
+        guard save() else {
+            entries = previousEntries
+            return false
+        }
+        return true
+    }
+
+    /// 用户点返回/重拍：草稿连同照片文件一起删除，不进相册。
+    @discardableResult
+    func discardDraft(id: UUID) -> Bool {
+        guard let entry = entries.first(where: { $0.id == id }),
+              entry.isDraft == true else { return false }
+        let previousEntries = entries
+        entries.removeAll { $0.id == id }
+        try? PhotoFileStore().delete(fileName: entry.imageFileName)
+
+        guard save() else {
+            entries = previousEntries
+            return false
+        }
+        return true
     }
 
     /// 用户在照片墙上拖动一张照片后落位：记为手动摆放，并抬到最上层。

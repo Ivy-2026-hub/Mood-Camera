@@ -364,11 +364,11 @@ final class CameraController: NSObject, ObservableObject {
         rotationCoordinator = coordinator
         rotationDeviceUniqueID = device.uniqueID
 
-        // “胶片方向”：成片角度必须与取景角度完全一致，取景看到什么就拍到什么。
-        // 不能用 videoRotationAngleForHorizonLevelCapture——它会把横持拍到的画面
-        // 自动转正，于是卡片里变成正着的横图，和侧躺的取景框对不上。
+        // 成片先按用户握持姿态自动转正（horizon-level），得到“正着的”画面；
+        // 之后 PhotoFileStore 再把横图顺时针转 90° 放上竖版相纸。
+        // 不能让成片角度跟随取景角度——那样竖持拍出来的画面会整体侧躺 90°。
         let previewAngle = coordinator.videoRotationAngleForHorizonLevelPreview
-        let captureAngle = previewAngle
+        let captureAngle = coordinator.videoRotationAngleForHorizonLevelCapture
         UIView.performWithoutAnimation {
             guard let connection = previewLayer.connection else { return }
             connection.automaticallyAdjustsVideoMirroring = false
@@ -399,13 +399,13 @@ final class CameraController: NSObject, ObservableObject {
             }
         }
 
-        // 成片角度跟随取景角度，而不是自动转正角度，保证所见即所得。
+        // 成片角度跟随“自动转正”角度，横竖持都能先得到摆正的画面。
         captureRotationObservation = coordinator.observe(
-            \.videoRotationAngleForHorizonLevelPreview,
+            \.videoRotationAngleForHorizonLevelCapture,
             options: [.initial, .new]
         ) { [weak self] coordinator, _ in
             DispatchQueue.main.async {
-                self?.captureRotationAngle = coordinator.videoRotationAngleForHorizonLevelPreview
+                self?.captureRotationAngle = coordinator.videoRotationAngleForHorizonLevelCapture
             }
         }
     }
