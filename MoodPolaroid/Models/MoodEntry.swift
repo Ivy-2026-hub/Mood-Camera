@@ -72,6 +72,8 @@ struct MoodEntry: Identifiable, Codable, Equatable {
     var wallPositionY: Double?
     var wallRotation: Double?
     var wallZIndex: Double?
+    /// 用户在照片墙上亲手拖动过：为真时自动排布不再覆盖它的位置。
+    var wallIsManual: Bool?
 
     init(
         id: UUID = UUID(),
@@ -88,7 +90,8 @@ struct MoodEntry: Identifiable, Codable, Equatable {
         wallPositionX: Double? = nil,
         wallPositionY: Double? = nil,
         wallRotation: Double? = nil,
-        wallZIndex: Double? = nil
+        wallZIndex: Double? = nil,
+        wallIsManual: Bool? = nil
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -105,5 +108,6 @@ struct MoodEntry: Identifiable, Codable, Equatable {
         self.wallPositionY = wallPositionY
         self.wallRotation = wallRotation
         self.wallZIndex = wallZIndex
+        self.wallIsManual = wallIsManual
     }
 }

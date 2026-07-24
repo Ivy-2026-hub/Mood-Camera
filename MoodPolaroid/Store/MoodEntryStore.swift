@@ -17,11 +17,13 @@ final class MoodEntryStore: ObservableObject {
 
     @discardableResult
     func add(_ newEntry: MoodEntry) -> Bool {
-        var entry = newEntry
-        assignWallLayoutIfNeeded(to: &entry, ordinal: nextWallOrdinal)
+        let entry = newEntry
         let previousEntries = entries
         entries.append(entry)
         entries.sort { $0.createdAt > $1.createdAt }
+        // 排好序后按“最新在最上”重排未被手动拖动过的照片；
+        // 旧写法用 max(zIndex)+1 当序号，新照片反而被排到墙的最下面。
+        reflowWallLayouts()
 
         guard save() else {
             entries = previousEntries
@@ -137,15 +139,48 @@ final class MoodEntryStore: ObservableObject {
         }
     }
 
-    /// 删除后把剩余照片重新连续排布，照片墙不留空洞，相册页也按新顺序重新分页。
+    /// 按“最新在最上”重排照片墙；用户亲手拖动过的照片保留自己的位置不被覆盖。
     private func reflowWallLayouts() {
         let rotations = [-3.5, 2.4, -1.2, 3.2, 1.0, -2.6]
         for index in entries.indices {
+            // 手动摆放过的照片只补缺失字段，位置与层级都听用户的。
+            guard entries[index].wallIsManual != true else {
+                if entries[index].wallRotation == nil {
+                    entries[index].wallRotation = rotations[index % rotations.count]
+                }
+                if entries[index].wallZIndex == nil {
+                    entries[index].wallZIndex = Double(entries.count - index)
+                }
+                continue
+            }
             entries[index].wallPositionX = index.isMultiple(of: 2) ? 0.27 : 0.73
             entries[index].wallPositionY = 135 + Double(index / 2) * 248
             entries[index].wallRotation = rotations[index % rotations.count]
-            entries[index].wallZIndex = Double(index)
+            // entries 是最新在前，越新层级越高，落在最上面。
+            entries[index].wallZIndex = Double(entries.count - index)
         }
+    }
+
+    /// 用户在照片墙上拖动一张照片后落位：记为手动摆放，并抬到最上层。
+    @discardableResult
+    func updateWallPosition(
+        id: UUID,
+        relativeX: Double,
+        absoluteY: Double
+    ) -> Bool {
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return false }
+        let previousEntries = entries
+        let topZ = (entries.compactMap(\.wallZIndex).max() ?? 0) + 1
+        entries[index].wallPositionX = min(0.95, max(0.05, relativeX))
+        entries[index].wallPositionY = max(90, absoluteY)
+        entries[index].wallZIndex = topZ
+        entries[index].wallIsManual = true
+
+        guard save() else {
+            entries = previousEntries
+            return false
+        }
+        return true
     }
 
     private func refreshPhotoIntegrity() {

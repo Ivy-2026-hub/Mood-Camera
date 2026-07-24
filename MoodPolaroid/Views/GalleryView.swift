@@ -202,7 +202,17 @@ struct GalleryView: View {
                             entry: entry,
                             rotation: entry.wallRotation ?? 0,
                             showDetail: { selectedEntry = entry },
-                            requestDelete: { entryPendingDeletion = entry }
+                            requestDelete: { entryPendingDeletion = entry },
+                            commitDrag: { translation in
+                                let width = max(1, proxy.size.width)
+                                let currentX = width * (entry.wallPositionX ?? 0.5)
+                                let currentY = entry.wallPositionY ?? 135
+                                store.updateWallPosition(
+                                    id: entry.id,
+                                    relativeX: (currentX + translation.width) / width,
+                                    absoluteY: currentY + translation.height
+                                )
+                            }
                         )
                         .position(
                             x: proxy.size.width * (entry.wallPositionX ?? 0.5),
@@ -674,6 +684,11 @@ private struct PinnedPhoto: View {
     let rotation: Double
     let showDetail: () -> Void
     let requestDelete: () -> Void
+    /// 拖动结束后把落点交回上层保存；参数是相对墙宽的 X 与绝对 Y。
+    var commitDrag: ((CGSize) -> Void)?
+
+    @State private var dragTranslation: CGSize = .zero
+    @State private var isDragging = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -688,9 +703,39 @@ private struct PinnedPhoto: View {
                 .offset(y: -7)
         }
         .padding(.top, 7)
-        .rotationEffect(.degrees(rotation))
+        // 拖动时抬起、摆正、加深阴影，像把照片从墙上取下来拿在手里。
+        .rotationEffect(.degrees(isDragging ? 0 : rotation))
+        .scaleEffect(isDragging ? 1.06 : 1)
+        .shadow(
+            color: .black.opacity(isDragging ? 0.28 : 0),
+            radius: isDragging ? 14 : 0,
+            y: isDragging ? 10 : 0
+        )
+        .offset(dragTranslation)
         .contentShape(Rectangle())
-        .accessibilityLabel("轻点翻看情绪卡片，右上角可放大")
+        .gesture(
+            // 长按后才进入拖动，避免与轻点翻卡、滚动照片墙抢手势。
+            LongPressGesture(minimumDuration: 0.28)
+                .sequenced(before: DragGesture(coordinateSpace: .local))
+                .onChanged { value in
+                    guard case let .second(_, drag?) = value else { return }
+                    if !isDragging {
+                        isDragging = true
+                        UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+                    }
+                    dragTranslation = drag.translation
+                }
+                .onEnded { _ in
+                    guard isDragging else { return }
+                    isDragging = false
+                    let finalTranslation = dragTranslation
+                    dragTranslation = .zero
+                    commitDrag?(finalTranslation)
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
+        )
+        .animation(.easeOut(duration: 0.18), value: isDragging)
+        .accessibilityLabel("轻点翻看情绪卡片，长按可拖动摆放")
     }
 }
 

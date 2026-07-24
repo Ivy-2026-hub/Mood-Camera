@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 /// 调试皮肤自动热区时使用的总开关；打开后会显示红框与功能名。
-let DEBUG_HOTSPOTS = true
+let DEBUG_HOTSPOTS = false
 
 /// 真机 A/B：默认交叉淡化；Scheme 加启动参数 `-flash-patch-slide` 即切到拨杆平移版。
 private let FLASH_PATCH_ANIMATION_STYLE: FlashPatchAnimationStyle =
@@ -163,17 +163,12 @@ struct SkinnedCameraView<PreviewPlaceholder: View>: View {
     ) -> CameraBodyLayout {
         let sourceWidth = max(1, skin.pixelWidth)
         let sourceHeight = max(1, skin.pixelHeight)
-        // 新版拍立得素材已裁到机身边缘，直接 scaledToFill；坐标仍严格
-        // 相对整张实际显示图片计算，不再使用旧设计稿的隐藏裁边补偿。
-        let scale = skin.id == "mood_camera"
-            ? max(
-                max(1, availableSize.width) / sourceWidth,
-                max(1, availableSize.height) / sourceHeight
-            )
-            : min(
-                max(1, availableSize.width) / sourceWidth,
-                max(1, availableSize.height) / sourceHeight
-            )
+        // 机身必须整台可见：一律 scaledToFit（取较小缩放比），不允许裁掉边缘按键。
+        // 竖直方向多出来的空档由 canvasColor 衬底填满，与顶条/底条同色因此不可见。
+        let scale = min(
+            max(1, availableSize.width) / sourceWidth,
+            max(1, availableSize.height) / sourceHeight
+        )
         let originY = (
             availableSize.height - sourceHeight * scale
         ) / 2
