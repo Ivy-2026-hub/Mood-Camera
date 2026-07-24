@@ -21,16 +21,20 @@ struct QwenVisionService: AIService {
     /// 拔掉数据线也在）→ ② 环境变量（仅在 Xcode 运行时注入，方便调试）。
     /// 之所以两条都留，是因为环境变量只在连着 Xcode 时存在，脱机启动就没有了，
     /// 这正是“不连电脑就调不了 AI”的原因；Secrets.plist 才是随包走的正解。
+    /// 百炼 API Key，直接内置在 App 里，随包装进手机，脱机也能调用。
+    /// 说明：key 写死在代码里意味着它会随 App 分发；本项目 key 已做用量监控，
+    /// 营期自用/真机演示可接受。将来若要公开上架，应改为服务器中转。
+    private static let embeddedAPIKey = "sk-ws-H.EHYYRIX.XvoV.MEYCIQD9sR8eWwhAm8WfitqGVU8iLSF6v0ko3gcmj7bRIyzX9AIhAL_E0vxC6K1isF7Mncraectyf_FsBk_EpI8nFiidn9R5"
+
     static func resolvedAPIKey() -> String? {
-        if let url = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
-           let dict = NSDictionary(contentsOf: url),
-           let key = dict["DASHSCOPE_API_KEY"] as? String {
-            let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }
+        let trimmed = embeddedAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty, trimmed != "PASTE_YOUR_DASHSCOPE_API_KEY_HERE" {
+            return trimmed
         }
+        // 兜底：也支持从环境变量读（方便临时换 key 调试）。
         if let key = ProcessInfo.processInfo.environment["DASHSCOPE_API_KEY"] {
-            let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }
+            let t = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !t.isEmpty { return t }
         }
         return nil
     }
