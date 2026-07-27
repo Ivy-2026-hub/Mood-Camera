@@ -3,6 +3,37 @@ import SwiftUI
 import UIKit
 
 /// 产品中同一批照片可选择的图钉墙或翻页拍立得相册展示方式。
+/// 图钉墙的三种排列模式，切换即一键重排（不再自由拖动）。
+private enum WallArrangement: String, CaseIterable, Identifiable {
+    case staggered   // 错落（拍立得随手一叠的感觉）
+    case grid        // 网格（整齐两列）
+    case timeline    // 时间线（单列，最新在上）
+
+    var id: Self { self }
+    var displayName: String {
+        switch self {
+        case .staggered: "错落"
+        case .grid: "网格"
+        case .timeline: "时间线"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .staggered: "square.stack.3d.up"
+        case .grid: "square.grid.2x2"
+        case .timeline: "list.bullet"
+        }
+    }
+    var columns: Int { self == .timeline ? 1 : 2 }
+    var rowHeight: CGFloat {
+        switch self {
+        case .staggered: 250
+        case .grid: 236
+        case .timeline: 244
+        }
+    }
+}
+
 private enum GalleryDisplayMode: String, CaseIterable, Identifiable {
     /// 上下分栏的入口选择页；进入相册先落在这里。
     case chooser
@@ -51,6 +82,7 @@ struct GalleryView: View {
 
     @State private var selectedEntry: MoodEntry?
     @AppStorage("galleryDisplayMode") private var displayModeRawValue = GalleryDisplayMode.chooser.rawValue
+    @AppStorage("wallArrangement") private var wallArrangementRaw = WallArrangement.staggered.rawValue
     /// 当前打开的是第几本相簿（0 起）。
     @AppStorage("galleryCurrentBook") private var currentBookIndex = 0
     @AppStorage("galleryCurrentAlbumPage") private var currentAlbumPage = 0
@@ -259,36 +291,87 @@ struct GalleryView: View {
     }
 
     private var photoWall: some View {
-        ScrollView {
-            GeometryReader { proxy in
-                ZStack(alignment: .topLeading) {
-                    ForEach(store.savedEntries) { entry in
-                        PinnedPhoto(
-                            entry: entry,
-                            rotation: entry.wallRotation ?? 0,
-                            showDetail: { selectedEntry = entry },
-                            requestDelete: { entryPendingDeletion = entry }
-                        )
-                        .position(
-                            x: proxy.size.width * (entry.wallPositionX ?? 0.5),
-                            y: entry.wallPositionY ?? 135
-                        )
-                        .zIndex(entry.wallZIndex ?? 0)
+        VStack(spacing: 0) {
+            wallArrangementBar
+            ScrollView {
+                GeometryReader { proxy in
+                    ZStack(alignment: .topLeading) {
+                        ForEach(Array(store.savedEntries.enumerated()), id: \.element.id) { index, entry in
+                            let spot = wallSpot(index: index, width: proxy.size.width)
+                            PinnedPhoto(
+                                entry: entry,
+                                rotation: spot.rotation,
+                                showDetail: { selectedEntry = entry },
+                                requestDelete: { entryPendingDeletion = entry }
+                            )
+                            .position(x: spot.x, y: spot.y)
+                            .zIndex(Double(store.savedEntries.count - index))
+                        }
                     }
+                    // 切换排列 / 增删时，照片平滑归位。
+                    .animation(.spring(response: 0.5, dampingFraction: 0.82), value: wallArrangement)
+                    .animation(.spring(response: 0.48, dampingFraction: 0.82), value: store.savedEntries.count)
                 }
-                // 照片按时间自动码放；增删时轻微动画，位置不再由用户手动拖动。
-                .animation(
-                    .spring(response: 0.48, dampingFraction: 0.82),
-                    value: store.savedEntries.count
-                )
+                .frame(height: wallContentHeight)
             }
-            .frame(height: wallContentHeight)
+        }
+    }
+
+    /// 照片墙顶部的排列模式切换条——一键把整墙码成错落 / 网格 / 时间线。
+    private var wallArrangementBar: some View {
+        HStack(spacing: 8) {
+            ForEach(WallArrangement.allCases) { mode in
+                let selected = wallArrangement == mode
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    wallArrangementRaw = mode.rawValue
+                } label: {
+                    Label(mode.displayName, systemImage: mode.icon)
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(selected ? .white : .black.opacity(0.6))
+                        .padding(.horizontal, 12)
+                        .frame(height: 30)
+                        .background(selected ? Color.black.opacity(0.78) : Color.white.opacity(0.66),
+                                    in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+
+    private var wallArrangement: WallArrangement {
+        WallArrangement(rawValue: wallArrangementRaw) ?? .staggered
+    }
+
+    /// 由"索引 + 当前模式"纯计算出每张照片的位置和角度——不再依赖存储的坐标，
+    /// 也就没有"拖乱了要整理"的问题，切模式即一键码齐。
+    private func wallSpot(index: Int, width: CGFloat) -> (x: CGFloat, y: CGFloat, rotation: Double) {
+        let rotations: [Double] = [-3.5, 2.4, -1.2, 3.2, 1.0, -2.6]
+        switch wallArrangement {
+        case .staggered:
+            let col = index % 2
+            let row = index / 2
+            return (width * (col == 0 ? 0.29 : 0.71),
+                    150 + CGFloat(row) * 250,
+                    rotations[index % rotations.count])
+        case .grid:
+            let col = index % 2
+            let row = index / 2
+            return (width * (col == 0 ? 0.28 : 0.72),
+                    150 + CGFloat(row) * 236,
+                    0)
+        case .timeline:
+            return (width * 0.5, 150 + CGFloat(index) * 244, 0)
         }
     }
 
     private var wallContentHeight: CGFloat {
-        let largestY = store.savedEntries.compactMap(\.wallPositionY).max() ?? 135
-        return max(520, largestY + 150)
+        let mode = wallArrangement
+        let rows = (store.savedEntries.count + mode.columns - 1) / max(1, mode.columns)
+        return max(520, 150 + CGFloat(rows) * mode.rowHeight + 120)
     }
 
     private var albumView: some View {

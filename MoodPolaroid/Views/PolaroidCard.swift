@@ -323,6 +323,26 @@ struct PolaroidCard: View {
             )
             .allowsHitTesting(false)
         }
+        .overlay {
+            // 用户选的相纸若带相框图（Ivy 设计的 SVG 转成的 PNG，中间照片窗口透明），
+            // 就把它叠在照片四周；照片从透明窗口露出、边框art 框住照片。
+            if let frameImage = currentPaperFrameImage {
+                Image(frameImage)
+                    .resizable()
+                    .allowsHitTesting(false)
+                    .opacity(isPhotoVisible ? 1 : 0)
+            }
+        }
+    }
+
+    /// 解析用户当前选中的相纸，取出它的相框图资源名（没有则 nil，走纯色边）。
+    private var currentPaperFrameImage: String? {
+        guard let paperID = entry.paperID,
+              let skin = CameraSkins.named(entry.cameraSkinID) ?? CameraSkins.named("polaroid"),
+              let paper = skin.papers.first(where: { $0.id == paperID }) else {
+            return nil
+        }
+        return paper.frameImage
     }
 
     private var isPaperAtRest: Bool {
