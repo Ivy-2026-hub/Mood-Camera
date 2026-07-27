@@ -84,6 +84,16 @@ struct CameraSkinPaper: Identifiable {
     let id: String
     let displayName: String
     let colorHex: String
+    /// 相框叠加图（PNG，中间照片窗口透明）的 Assets 资源名。
+    /// 为空时用 colorHex 的纯色边；非空时把这张框叠在照片四周（Ivy 的 SVG 相框转成的 PNG）。
+    var frameImage: String? = nil
+
+    init(id: String, displayName: String, colorHex: String, frameImage: String? = nil) {
+        self.id = id
+        self.displayName = displayName
+        self.colorHex = colorHex
+        self.frameImage = frameImage
+    }
 }
 
 /// 产品中一套可直接显示并响应实体按键的完整相机皮肤。
@@ -277,7 +287,8 @@ enum CameraSkins {
                 CameraSkinPaper(
                     id: "classic",
                     displayName: "经典白",
-                    colorHex: "#FFFFFF"
+                    colorHex: "#FFFFFF",
+                    frameImage: "frame_classic"
                 ),
                 CameraSkinPaper(
                     id: "pink",
@@ -367,7 +378,8 @@ enum CameraSkins {
                 CameraSkinPaper(
                     id: "classic",
                     displayName: "经典白",
-                    colorHex: "#FFFFFF"
+                    colorHex: "#FFFFFF",
+                    frameImage: "frame_classic"
                 ),
                 CameraSkinPaper(
                     id: "barbie",
