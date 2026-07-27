@@ -1,5 +1,0 @@
-    controls: [
-        .init(role: .flash, type: .toggle,
-              rect: .init(x: 76.8, y: 64.0, w: 17.7, h: 4.0),
-              statePatches: ["on": "patch_mood_flash_on", "off": "patch_mood_flash_off"]),
-    ],
