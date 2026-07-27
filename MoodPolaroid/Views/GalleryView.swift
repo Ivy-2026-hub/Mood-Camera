@@ -70,6 +70,7 @@ private enum AlbumCapacity {
 private enum GalleryEntryBackground {
     static let pinboard = "gallery_entry_pinboard"
     static let shelf = "gallery_entry_shelf"
+    static let river = "gallery_entry_river"
 }
 
 /// 产品中让图钉墙和翻页相册共享同一批本地情绪照片的收藏页面。
@@ -83,6 +84,8 @@ struct GalleryView: View {
     @State private var selectedEntry: MoodEntry?
     @AppStorage("galleryDisplayMode") private var displayModeRawValue = GalleryDisplayMode.chooser.rawValue
     @AppStorage("wallArrangement") private var wallArrangementRaw = WallArrangement.staggered.rawValue
+    @State private var isShowingRiver = false
+    @State private var openedSession: MoodSession?
     /// 当前打开的是第几本相簿（0 起）。
     @AppStorage("galleryCurrentBook") private var currentBookIndex = 0
     @AppStorage("galleryCurrentAlbumPage") private var currentAlbumPage = 0
@@ -195,6 +198,16 @@ struct GalleryView: View {
         }
         .fullScreenCover(item: $selectedEntry) { entry in
             GalleryPhotoDetail(entry: entry, aiService: aiService)
+        }
+        .fullScreenCover(isPresented: $isShowingRiver) {
+            MoodRiverScreen(
+                sessions: MoodSession.group(store.savedEntries),
+                onOpen: { openedSession = $0 },
+                onClose: { isShowingRiver = false }
+            )
+            .fullScreenCover(item: $openedSession) { session in
+                SessionDetailView(session: session, onClose: { openedSession = nil })
+            }
         }
         // 从屏幕左边缘往右滑返回上一级：相簿/图钉墙 → 收藏选择页 → 退出相册。
         // 这是系统返回手势失效时的兜底，也解决顶部返回栏偶尔看不到的问题。
@@ -491,6 +504,17 @@ struct GalleryView: View {
                     withAnimation(.easeInOut(duration: 0.22)) {
                         displayModeRawValue = GalleryDisplayMode.album.rawValue
                     }
+                }
+
+                GalleryEntryPanel(
+                    title: "情绪河流",
+                    subtitle: "\(MoodSession.group(store.savedEntries).count) 段 · 看情绪怎么流动",
+                    systemImage: "drop.fill",
+                    backgroundImageName: GalleryEntryBackground.river
+                ) {
+                    RiverMiniPreview(sessions: MoodSession.group(store.savedEntries))
+                } action: {
+                    isShowingRiver = true
                 }
             }
             .padding(.horizontal, 16)
@@ -1599,6 +1623,41 @@ private struct MiniPhotoThumb: View {
         .shadow(color: .black.opacity(0.16), radius: 3, y: 2)
         .task(id: entry.id) {
             image = store.loadImage(fileName: entry.imageFileName, maxPixelSize: 200)
+        }
+    }
+}
+
+/// 情绪河流那一块的缩小预览：几个情绪色小圆点连成一小段流动的样子。
+private struct RiverMiniPreview: View {
+    let sessions: [MoodSession]
+
+    var body: some View {
+        GeometryReader { proxy in
+            let items = Array(sessions.prefix(5))
+            ZStack {
+                if items.count > 1 {
+                    Path { path in
+                        for (i, _) in items.enumerated() {
+                            let x = proxy.size.width * (0.2 + 0.15 * CGFloat(i))
+                            let y = proxy.size.height * (0.5 + 0.28 * sin(CGFloat(i) * 1.1))
+                            if i == 0 { path.move(to: CGPoint(x: x, y: y)) }
+                            else { path.addLine(to: CGPoint(x: x, y: y)) }
+                        }
+                    }
+                    .stroke(.black.opacity(0.12), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                }
+                ForEach(Array(items.enumerated()), id: \.element.id) { i, s in
+                    Circle()
+                        .fill(s.palette.capsule)
+                        .overlay(Circle().stroke(s.palette.ink.opacity(0.5), lineWidth: 1.5))
+                        .frame(width: 22 + CGFloat(min(3, s.photoCount)) * 4,
+                               height: 22 + CGFloat(min(3, s.photoCount)) * 4)
+                        .position(
+                            x: proxy.size.width * (0.2 + 0.15 * CGFloat(i)),
+                            y: proxy.size.height * (0.5 + 0.28 * sin(CGFloat(i) * 1.1))
+                        )
+                }
+            }
         }
     }
 }

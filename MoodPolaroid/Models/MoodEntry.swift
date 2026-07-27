@@ -82,6 +82,10 @@ struct MoodEntry: Identifiable, Codable, Equatable {
     var wallIsManual: Bool?
     /// 已拍下但用户还没点“保存心情卡片”：不进相册、不出现在图钉墙与相簿里。
     var isDraft: Bool?
+    /// 情绪会话：同一次会话的照片共享一个 sessionID（自拍是锚、补拍是成员）。
+    var sessionID: String?
+    /// 会话中的角色："anchor"（开头那张自拍，定情绪基调）/ "followup"（顺着情绪补拍的）。
+    var sessionRole: String?
 
     init(
         id: UUID = UUID(),
@@ -104,7 +108,9 @@ struct MoodEntry: Identifiable, Codable, Equatable {
         wallRotation: Double? = nil,
         wallZIndex: Double? = nil,
         wallIsManual: Bool? = nil,
-        isDraft: Bool? = nil
+        isDraft: Bool? = nil,
+        sessionID: String? = nil,
+        sessionRole: String? = nil
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -127,5 +133,7 @@ struct MoodEntry: Identifiable, Codable, Equatable {
         self.wallZIndex = wallZIndex
         self.wallIsManual = wallIsManual
         self.isDraft = isDraft
+        self.sessionID = sessionID
+        self.sessionRole = sessionRole
     }
 }
