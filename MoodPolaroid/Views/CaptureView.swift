@@ -174,6 +174,9 @@ struct CaptureView: View {
     @State private var captureSkinIDSnapshot: String?
     @State private var capturePaperIDSnapshot: String?
     @State private var captureFilterSnapshot: CameraSkinFilterParameters?
+    @State private var captureIsSelfieSnapshot = false
+    // 情绪会话：自拍开一段新会话（锚），之后的照片归入这段（补拍），直到用户结束。
+    @State private var activeSessionID: String?
     @State private var alertMessage: String?
 
     private let photoFileStore = PhotoFileStore()
@@ -256,6 +259,15 @@ struct CaptureView: View {
                 }
                 .offset(y: -drawerOffset)
                 .simultaneousGesture(drawerGesture)
+
+                // 情绪会话进行中：顶条下方浮出一句轻引导 + 结束入口（不占布局）。
+                if activeSessionID != nil {
+                    sessionGuideBanner
+                        .padding(.top, topHeight + 8)
+                        .padding(.horizontal, 16)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
             .coordinateSpace(name: "cameraDrawerViewport")
             .onPreferenceChange(DrawerPresentationOffsetKey.self) { value in
@@ -335,6 +347,59 @@ struct CaptureView: View {
         } message: {
             Text(alertMessage ?? "")
         }
+    }
+
+    /// 当前进行中会话的锚（那张自拍）。
+    private var activeSessionAnchor: MoodEntry? {
+        guard let id = activeSessionID else { return nil }
+        return store.entries.first { $0.sessionID == id && $0.sessionRole == "anchor" }
+    }
+
+    /// 顺着自拍识别出的情绪，给一句可忽略的补拍轻引导。
+    private var sessionGuideText: String {
+        let emotion = activeSessionAnchor?.userEmotion ?? activeSessionAnchor?.aiEmotion
+        switch emotion {
+        case .happy: return "这份开心，值得多留几张——拍点此刻让你笑的东西？"
+        case .calm: return "顺着这份平静，拍一张此刻让你安心的画面？"
+        case .tired: return "有点累了。拍一张此刻让你放松下来的东西吧。"
+        case .bored: return "有点无聊也没关系——随手拍点眼前的小东西？"
+        case .sad: return "情绪有点低。拍一张此刻能陪着你的东西，好吗？"
+        case .other, .none: return "顺着这一刻，再多拍几张，留下此刻的线索。"
+        }
+    }
+
+    /// 情绪会话进行中的轻引导横幅：一句提议 + 结束这段。
+    private var sessionGuideBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Color(red: 0.62, green: 0.44, blue: 0.16))
+            Text(sessionGuideText)
+                .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(.black.opacity(0.78))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 6)
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) { activeSessionID = nil }
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } label: {
+                Text("结束这段")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .frame(height: 26)
+                    .background(.black.opacity(0.72), in: Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(.black.opacity(0.06), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
     }
 
     private func integratedTopBar(safeAreaTop: CGFloat) -> some View {
@@ -1743,6 +1808,7 @@ struct CaptureView: View {
         captureSkinIDSnapshot = selectedSkinID
         capturePaperIDSnapshot = selectedSkinPaperID
         captureFilterSnapshot = selectedCameraSkin?.filter
+        captureIsSelfieSnapshot = camera.cameraPosition == .front
         setDrawerState(.closed)
         isProcessing = true
 
@@ -1892,6 +1958,23 @@ struct CaptureView: View {
             let fileName = try photoFileStore.save(image, id: entryID)
             savedFileName = fileName
             let paperID = capturePaperIDSnapshot ?? selectedSkinPaperID
+
+            // 定会话归属：自拍(前摄) → 开一段新会话当锚；否则若有进行中的会话 → 补拍归入。
+            let sessionID: String?
+            let sessionRole: String?
+            if captureIsSelfieSnapshot {
+                let newID = entryID.uuidString
+                sessionID = newID
+                sessionRole = "anchor"
+                activeSessionID = newID
+            } else if let active = activeSessionID {
+                sessionID = active
+                sessionRole = "followup"
+            } else {
+                sessionID = nil
+                sessionRole = nil
+            }
+
             let entry = MoodEntry(
                 id: entryID,
                 createdAt: capturedAt,
@@ -1900,7 +1983,9 @@ struct CaptureView: View {
                 cameraSkinID: captureSkinIDSnapshot ?? selectedSkinID,
                 paperID: paperID.isEmpty ? nil : paperID,
                 cardState: .pending,
-                isDraft: true
+                isDraft: true,
+                sessionID: sessionID,
+                sessionRole: sessionRole
             )
 
             guard store.add(entry) else {
